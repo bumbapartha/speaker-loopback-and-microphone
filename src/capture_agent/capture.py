@@ -259,7 +259,7 @@ class CaptureSession:
                     sinks.append(lambda frame, output=writer: output.writeframes(frame.pcm))
                 if source.key in self.frame_sinks:
                     sinks.append(self.frame_sinks[source.key])
-                frame_sink = lambda frame: [sink(frame) for sink in sinks] if sinks else None
+                frame_sink = (lambda frame, outputs=tuple(sinks): [sink(frame) for sink in outputs]) if sinks else None
                 source.converter = StreamConverter(
                     source.sample_rate,
                     source.channels,

@@ -20,7 +20,7 @@ cleared after playback.
 No audio driver, virtual device, Windows audio setting, or system-wide routing is
 installed or changed. The app does not require administrator privileges. Audio
 is sent only to the explicitly configured receiver after you click Connect / Start
-and `capture.accepted` arrives. This sender does not save local audio
+and `capture.accepted` plus transmit=true arrive. This sender does not save local audio
 recordings. Transcription and AI remain on the Mac.
 
 ## Windows setup
@@ -54,23 +54,33 @@ the current indexes:
 \.venv\Scripts\python.exe -m capture_agent gui --config private\agent.json
 ```
 
-In the GUI, paste the exact receiver URL shown by the Mac (for example
-`ws://192.168.1.103:8765/ws/windows-agent`) and click **Connect / Start**. The
-Mac operator must first start an interview and select **Use Windows audio**.
-The receiver keeps the connection and acknowledges/discards frames if that Mac
-option is later unchecked; the Windows sender continues heartbeats and frames.
-The URL is saved in ignored `private/receiver.json`; protocol version stays fixed at
-1. The app sends `capture.start` and does not open either audio device until the
-Mac replies `capture.accepted`. Use **Stop** to stop both devices, finish queued
-frames within the acknowledgement window, send `capture.stop`, and close the
-connection. Reconnecting is explicit; old frames are never replayed.
+In the GUI, paste the Mac receiver URL (for example
+`ws://192.168.1.103:8765/ws/windows-agent`) and click **Connect / Start** once.
+You can start Windows before the Mac app. While disconnected, the agent checks
+`http://<MAC_IP>:8765/api/v1/windows-receiver/health` every five seconds. Mac
+unavailable or ready=false means **WAITING**, with both audio devices Off.
+Once the interview is active and **Use Windows audio** is checked, it connects
+automatically. The URL is saved in ignored `private/receiver.json`.
 
-The window shows per-source meters and sent / acknowledged frame counts. The
-sender uses separate `candidate` and `interviewer` sequences, 16 kHz mono
-PCM16LE frames, application heartbeats, and the receiver's maximum-unacknowledged
-limit. A connection loss, server stop, capture error, or five seconds without a
-receiver acknowledgement or pong stops both sources and returns the UI to Off.
-The app does not automatically reconnect.
+After capture.accepted with transmit=true, the sender opens the selected inputs.
+Unchecking Windows audio sends capture.control transmit=false: both inputs close,
+queued audio is discarded, and the socket keeps exchanging one-second heartbeats.
+Rechecking resumes live capture on the same connection with the same captureId,
+sequence counters and normalized timestamps. No paused audio is replayed. Source
+timestamps freeze during the pause; candidate suppression during active streaming
+still sends silence frames to preserve timing. Interviewer audio is never gated.
+
+Connection loss, normal close 1000, Mac Finish/End or ten seconds without a pong
+or acknowledgement releases both inputs and returns to five-second readiness
+polling. Reconnection uses a new captureId and counters, without an old backlog.
+**Stop** or closing the window disables automatic reconnect and releases inputs.
+Device/capture errors stop the agent so devices can be reselected; network failures
+wait and retry without an error popup. No certificate, token or session ID is needed.
+
+The window shows WAITING, CONNECTING, PAUSED or CAPTURE ON, per-source meters and
+sent/acknowledged counts. Each source retains its own bounded queue and flow-control
+window. Transcription and AI run on the Mac. See WINDOWS_AGENT_HANDOFF.md for the
+exact readiness and control contract.
 
 Replace the example indexes with those shown by `devices`. Selection validates
 that the microphone is an input, the playback device has a matching WASAPI
@@ -124,7 +134,8 @@ speaker audio or frame-boundary echo can still appear in Candidate.
 - The `gui` window starts Off, lets you select and save the two devices, and
   shows independent live peak bars, RMS, sent / acknowledged counts, and
   speaker-suppressed Candidate frames. Clicking Connect / Start is the explicit
-  action; both audio devices remain closed until the receiver accepts. Stop and window
+  action; both audio devices remain closed until the receiver accepts and requests
+  transmission. Stop and window
   close release both inputs. The sender does not save recordings.
 
 The user manually confirmed a saved GUI conversation sounded correct; see

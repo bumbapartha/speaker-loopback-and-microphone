@@ -32,3 +32,21 @@ Result: **user confirmed both separate recordings were present and sounded
 correct** after a manual Start / Stop conversation. Numeric levels and exact
 scenario details were not recorded. This validates the local W2 recording path;
 it does not validate the new W4 network sender.
+
+## Sender readiness/control check on Mac (synthetic audio only)
+
+Date: 2026-11-17
+
+Python source compilation and a temporary local HTTP/WebSocket mock check passed:
+waiting with no capture before ready; automatic connection after ready; separate
+Candidate/Interviewer payloads and counters; pause with heartbeat and no PCM;
+resume with the same captureId/counters; automatic retry after normal close 1000;
+fresh captureId/counters after reconnect; Stop disables retries. No test framework
+or permanent test suite was added. A per-source sink callback binding was also
+corrected so converters retain their own sinks.
+
+This check used synthetic capture callbacks, not WASAPI hardware or the Tk GUI.
+On the HP laptop, run the GUI, click Connect / Start once, then start the Mac
+interview and toggle Use Windows audio off/on. Confirm both role transcripts,
+paused audio silence, automatic recovery after restarting the Mac, and Stop.
+Real Windows audio/GUI acceptance remains pending.

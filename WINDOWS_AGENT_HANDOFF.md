@@ -8,8 +8,8 @@ The Mac receiver is implemented against this contract. Keep source capture uncha
 > Reuse the Windows app's working microphone and loopback capture. Add a minimal
 > LAN WebSocket sender to the Mac receiver at `ws://<MAC_LAN_IP>:8765/ws/windows-agent`.
 > This is an in-house POC: no TLS, CA certificate, pairing token, login or API key.
-> The only connection configuration is the receiver URL. The Mac operator starts
-> an interview and selects Use Windows audio before you connect. There is one
+> The only connection configuration is the receiver URL. Start the Windows agent
+> anytime; it waits until the Mac interview selects Use Windows audio. There is one
 > active interview and one Windows sender, so no session ID lookup is needed.
 >
 > Use the protocol below. Microphone is `candidate`; playback loopback is
@@ -23,7 +23,8 @@ The Mac receiver is implemented against this contract. Keep source capture uncha
 >
 > Add receiver URL, Connect/Start, Stop, connection status and simple per-source
 > sent/acked counts. Send capture.ping every second. Stop both device streams on
-> capture.stop, disconnect or capture error. Explicit reconnect is enough; do not
+> capture.stop, disconnect or capture error, then automatically poll readiness every
+> five seconds and reconnect as described below. Do not
 > replay old queued audio. Keep queues small and use the acknowledged sequence
 > values for the specified bound. No recordings or large automated test suite.
 >
@@ -32,6 +33,37 @@ The Mac receiver is implemented against this contract. Keep source capture uncha
 > handles transcription and AI. Do not add local recognition or voice calibration
 > in this task. Verify Stop/Finish and brief simultaneous speech. Follow the exact
 > message shapes below and report actual Windows results.
+
+## Automatic readiness and reconnect (current receiver)
+
+Give the Windows Codex this update:
+
+> Poll `http://<MAC_LAN_IP>:8765/api/v1/windows-receiver/health` every 5 seconds
+> while disconnected. Derive HTTP host/port from the configured WebSocket URL.
+> HTTP 200 returns `{ "status": "up", "protocol": 1, "ready": false, "retryAfterMs": 5000 }`.
+> When unavailable or ready=false, stay waiting and send no audio. When ready=true,
+> connect the existing WebSocket and perform capture.start/accepted automatically.
+> Do not require a Connect click after the initial configuration/start of the agent.
+> The Mac sends `{ "type": "capture.control", "transmit": true|false }` when the
+> checkbox/control connection changes. Wait for capture.accepted before any audio.
+> accepted now also includes transmit. Honor false by dropping queued PCM and
+> stopping audio transmission, keeping the socket and capture.ping alive every second.
+> On true resume live audio with the same captureId and per-source counters. During
+> this pause freeze the normalized transport timestamps: each next frame remains
+> firstTimestampUs + sequence*20000. Do not send zero frames for the unchecked time.
+> Candidate suppression DURING transmission still sends zero candidate frames.
+> Heartbeats before capture.start may omit captureId; after accepted include it.
+> Process control messages throughout the handshake, applying the newest value.
+> On close (including normal 1000), transport failure, missing pong for 10 seconds,
+> or capture.stop: release capture, discard queues and return to the 5-second health
+> poll loop. Use a fresh captureId and counters on the next connection. Prevent
+> parallel sockets/retry loops. A user Stop/Exit disables automatic reconnect.
+> No old audio replay and no API keys/certificates/tokens. Test start-before-Mac,
+> checkbox off/on, Finish, Mac restart and Wi-Fi disconnect/reconnect manually.
+
+Readiness means an interview is active, Windows audio is selected and its browser
+monitor is connected. Existing connections can stay alive while unchecked. Closed
+connections cannot exchange heartbeat; HTTP polling discovers recovery instead.
 
 ## Configuration
 
@@ -48,11 +80,11 @@ LAN POC. It is not an Internet-facing service.
 
 The Mac must have Use Windows audio checked and its control connection open.
 Unchecking it keeps the HP connection open: the Mac acknowledges and discards audio.
-Checking it again resumes processing automatically on the same connection, without
-a new capture.start or replay. Keep sending frames and heartbeats while unchecked.
+Checking it again sends capture.control transmit=true and resumes on the same
+connection without a new capture.start or replay. Keep heartbeats while unchecked,
+but stop transmitting audio when capture.control transmit=false.
 Finish, End or losing the active Windows control connection stops the sender.
-On a stopped/disconnected session, click Reconnect receiver on the Mac before
-reconnecting the Windows sender. The URL stays the same.
+After a disconnect, poll readiness and reconnect automatically. The URL stays the same.
 
 ## Start: client → server
 

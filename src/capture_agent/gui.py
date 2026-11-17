@@ -28,7 +28,7 @@ class CaptureWindow:
 
         self.state_var = tk.StringVar(value="CAPTURE OFF")
         self.message_var = tk.StringVar(
-            value="Paste the Mac receiver URL. Start the Mac interview and select Use Windows audio; capture stays Off until you click Connect / Start and the receiver accepts."
+            value="Paste the Mac receiver URL and click Connect / Start once. The agent waits for the Mac interview, follows its Windows audio checkbox, and reconnects automatically."
         )
         self.mic_var = tk.StringVar()
         self.playback_var = tk.StringVar()
@@ -111,7 +111,7 @@ class CaptureWindow:
 
         ttk.Label(
             outer,
-            text="Audio capture starts after you click Connect / Start and the receiver accepts. Audio streams live to the Mac; this sender does not save recordings. Stop or closing releases both inputs.",
+            text="While started, Mac readiness is checked every 5 seconds. Capture runs only when the Mac requests it. Stop or closing releases inputs and disables automatic reconnect.",
             wraplength=610,
         ).grid(row=13, column=0, columnspan=3, sticky="w", pady=(10, 0))
 
@@ -208,7 +208,7 @@ class CaptureWindow:
         self._last_sender_state = "CONNECTING"
         self.transport_stats.set("Sent: Candidate 0 · Interviewer 0 | Acknowledged: Candidate 0 · Interviewer 0")
         self.state_var.set("CONNECTING")
-        self.message_var.set("Connecting to receiver. Audio devices remain Off until it accepts this capture.")
+        self.message_var.set("Checking Mac readiness. Audio devices remain Off until Windows audio is selected.")
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.refresh_button.configure(state="disabled")
@@ -231,11 +231,17 @@ class CaptureWindow:
                 self.candidate_rms.set(
                     f"RMS {candidate['rms']:.3f} | peak {candidate['peak']:.3f} | captured {candidate['captured_seconds']:.1f} s | suppressed {candidate['speaker_suppressed_frames']} frames"
                 )
+            else:
+                self.candidate_bar["value"] = 0
+                self.candidate_rms.set("RMS 0.000 | peak 0.000 | captured 0.0 s")
             if interviewer:
                 self.interviewer_bar["value"] = min(100.0, float(interviewer["peak"]) * 100.0)
                 self.interviewer_rms.set(
                     f"RMS {interviewer['rms']:.3f} | peak {interviewer['peak']:.3f} | captured {interviewer['captured_seconds']:.1f} s"
                 )
+            else:
+                self.interviewer_bar["value"] = 0
+                self.interviewer_rms.set("RMS 0.000 | peak 0.000 | captured 0.0 s")
             sent, acked = snapshot["sent"], snapshot["acked"]
             self.transport_stats.set(
                 f"Sent: Candidate {sent['candidate']} · Interviewer {sent['interviewer']} | "
@@ -262,7 +268,7 @@ class CaptureWindow:
         if self.sender is not None and self.sender.snapshot()["state"] != "OFF":
             self.sender.stop()
             self.state_var.set("STOPPING")
-            self.message_var.set("Stopping capture and draining acknowledged audio…")
+            self.message_var.set("Stopping capture and automatic reconnect…")
             self.stop_button.configure(state="disabled")
             return
         self._reset_connection_controls()
