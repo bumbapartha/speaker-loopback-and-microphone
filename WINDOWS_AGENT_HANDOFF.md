@@ -42,8 +42,7 @@ The Mac receiver is implemented against this contract. Keep source capture uncha
 }
 ```
 
-Use the actual URL displayed on the Mac, not the example IP. The Copy connection
-JSON button supplies these fields. No authentication header, certificate file or
+Use the actual URL displayed on the Mac, not the example IP. The copy icon beside Windows receiver copies the URL; protocol stays fixed at 1. No authentication header, certificate file or
 session ID is required. This plain WebSocket receiver is for the trusted in-house
 LAN POC. It is not an Internet-facing service.
 
