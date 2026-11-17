@@ -1,0 +1,31 @@
+docs/MANUAL_TEST_RESULTS.md
+  s_fdb4f9ccd90634::t_bef0b673c3d5c4 35-52
+src/capture_agent/transport.py
+  s_fdb4f9ccd90634::t_2415e82b435f48 13-14,27-28,46-47,82,115,119-120,154-178,180-198,201-210,213-227,229-245,247-256,266,287-289,295-297,299-307,309-341,343-348,350-388
+  s_fdb4f9ccd90634::t_bef0b673c3d5c4 54
+src/capture_agent/capture.py
+  s_fdb4f9ccd90634::t_2415e82b435f48 262
+README.md
+  s_fdb4f9ccd90634::t_bef0b673c3d5c4 23,137-138
+  s_fdb4f9ccd90634::t_b362ea690c0d7b 57-83
+src/capture_agent/gui.py
+  s_fdb4f9ccd90634::t_2415e82b435f48 31,114,211,234-236,242-244,271
+WINDOWS_AGENT_HANDOFF.md
+  s_fdb4f9ccd90634::t_7351f0eb685504 11-12,26-27,37-67,83-85,87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "05c78413f591d523931e2126fa9643897b15f0ec",
+  "prompts": {},
+  "sessions": {
+    "s_fdb4f9ccd90634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8b2-d8ce-7a61-b2b4-26074070f174",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Partha Sarathi Ghosh <ghosh.bumba@gmail.com>"
+    }
+  }
+}
