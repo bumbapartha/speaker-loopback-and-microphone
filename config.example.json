@@ -1,0 +1,26 @@
+{
+  "capture_enabled": false,
+  "speaker_priority": true,
+  "sources": {
+    "candidate": {
+      "device_index": null,
+      "device_name": null,
+      "host_api": "Windows WASAPI",
+      "sample_rate": null,
+      "channels": null,
+      "sample_format": "signed 16-bit PCM"
+    },
+    "interviewer": {
+      "playback_index": null,
+      "playback_name": null,
+      "loopback_index": null,
+      "loopback_name": null,
+      "host_api": "Windows WASAPI",
+      "sample_rate": null,
+      "channels": null,
+      "playback_sample_rate": null,
+      "playback_channels": null,
+      "sample_format": "signed 16-bit PCM"
+    }
+  }
+}

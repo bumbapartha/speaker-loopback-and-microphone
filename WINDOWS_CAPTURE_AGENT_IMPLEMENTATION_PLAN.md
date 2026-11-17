@@ -1,24 +1,53 @@
 # Windows Interview Capture Agent — Implementation and Manual Test Plan
 
-Status: proposed implementation plan; no capture-agent code has been implemented.
+Status: W0 complete; W1 device discovery and selection implemented; W2 capture, preview and a small manual-test GUI implemented. Built-in devices are selected; manual audio acceptance is pending.
 Prepared: 17 November 2026.
 Suggested new repository: `interview-capture-windows`.
 
 Copy this document into the new repository as `IMPLEMENTATION_PLAN.md`. It is
-self-contained so implementation can begin on the Windows HP laptop without
-access to the Mac repository. Commands and protocol examples below describe the
-planned application; they are not existing commands or endpoints.
+self-contained so implementation can proceed on the Windows HP laptop without
+access to the Mac repository. The device, selection, monitor and preview
+commands below are implemented. Mock-receiver and transport examples remain
+future targets, not existing commands or endpoints.
 
-## 1. Objective and fixed role mapping
+## 1. Objective, capture control and fixed role mapping
 
 Build a small personal-use Windows application that captures two independent
 audio streams and eventually sends them to the existing interview assistant on
 the Mac:
 
+### Capture must be explicitly switched on
+
+- The agent is **OFF by default** whenever it starts. Importing, launching,
+  listing devices, monitoring configuration or connecting to a receiver must not
+  open a capture stream or read microphone/playback audio.
+- Capture starts only after the user performs a clearly labeled Start/On action.
+  A visible indicator must show that both sources are actively being captured.
+- Stop/Off must stop both sources promptly, release their audio handles, clear
+  queued and preview audio from memory, and prevent any further audio delivery.
+  Capture must also stop both sources on an error or when the agent exits.
+  `preview` is the deliberate exception: after its bounded capture ends, it may
+  retain that preview in RAM only until separate playback finishes, then it must
+  clear it. No new audio is read during that playback.
+- While Off, normal laptop audio use remains under Windows and the user's other
+  applications: calls and other discussions continue normally, and the agent
+  does not capture, buffer new audio or send audio. The only retained audio may
+  be the bounded preview awaiting playback described above. The agent must not
+  mute, duck, reroute or otherwise interfere with those applications.
+- The agent is a user-mode application. It must not install, replace, modify or
+  disable audio drivers; create virtual audio devices; or change Windows audio
+  device, privacy, routing, default-device or system-wide settings. It may
+  enumerate devices and open only the explicitly selected microphone and
+  corresponding playback-loopback stream while On. It must not require
+  administrator privileges for normal operation.
+- If a selected device fails or disappears, stop both streams, return to Off,
+  release resources and show an actionable error. Do not auto-restart capture or
+  silently switch devices.
+
 | Windows audio source | Assigned role | Initial mock-interview source |
 |---|---|---|
-| Selected microphone input | CANDIDATE | You speaking into the HP microphone/headset |
-| Loopback of selected playback device | INTERVIEWER | ChatGPT Voice speaking through the selected headphones |
+| Selected microphone input | CANDIDATE | You speaking into the built-in laptop microphone |
+| Loopback of selected playback device | INTERVIEWER | ChatGPT Voice speaking through the built-in speakers |
 
 Roles come from the capture source, not voice characteristics. No pitch filter,
 voice calibration, voiceprint matching, gender inference or speaker diarisation
@@ -29,7 +58,14 @@ Assumptions:
 
 - Only the candidate speaks into the local microphone during an interview.
 - ChatGPT Voice and, later, Teams use the selected playback device.
-- Headphones are used for the first POC, keeping playback out of the microphone.
+- The user's initial setup is the laptop's built-in microphone and speaker. The
+  playback loopback captures the speaker mix directly; the built-in microphone
+  may also acoustically pick up that speaker audio.
+- Speaker-priority mode is enabled by default: when loopback playback is active,
+  Candidate preview frames are replaced with silence for the overlap plus a
+  short hangover. The Interviewer loopback stream is never gated. The user
+  accepts losing Candidate speech during those intervals to protect the
+  Interviewer channel from speaker bleed.
 - The Windows agent is capture/transport software. The Mac owns transcription,
   CV/JD context, AI cues and the interview session.
 - The first useful test must work entirely on Windows, without a Mac or API key
@@ -39,6 +75,8 @@ Assumptions:
 
 ### Initial scope
 
+- Off by default, with explicit Start/On and Stop/Off controls and a persistent
+  visible capture-state indicator.
 - Explicit microphone and playback-loopback selection.
 - Independent live level meters, counters and role labels.
 - Start and Stop; release both devices cleanly on Stop or failure.
@@ -55,7 +93,12 @@ Assumptions:
 - Voice profiles, separating individual remote participants and overlap diarisation.
 - Automatic control of ChatGPT Voice or Teams.
 - Transcription, answer generation or OpenAI credentials inside the Windows agent.
-- Saved recordings, cloud audio upload and exporting ChatGPT voice recordings.
+- Cloud audio upload and exporting ChatGPT voice recordings. CLI capture stays
+  temporary unless `preview --save` is explicitly selected. The manual GUI
+  offers an explicit, disclosed recording checkbox for separate local WAVs.
+
+Driver installation/replacement and system-wide audio reconfiguration are out of
+scope. The agent must use Windows' existing audio stack without changing it.
 
 Standard WASAPI endpoint loopback captures the selected device's playback mix,
 not just Teams or ChatGPT. Other applications and notifications on that endpoint
@@ -149,8 +192,8 @@ imports so receiver tooling can run without PyAudioWPatch there.
    ```
 
 5. Enable microphone access for desktop applications in Windows privacy settings.
-6. Connect headphones, preferably a wired/USB headset for the initial test. Select
-   the same microphone/playback devices in the browser's voice conversation.
+6. Select the laptop's built-in microphone and speaker. Use the same playback
+   endpoint in the browser's voice conversation.
 7. Keep the Mac, API billing and Teams out of the first capture check.
 
 Use the virtual environment's Python executable directly; activating PowerShell
@@ -191,8 +234,14 @@ frame remainders, and retain resampler state between callbacks.
   zero audio or a defined silence event; the first protocol uses zero frames.
 - Measure clock drift during longer tests. Approximate timestamps are acceptable,
   but cumulative skew must be visible rather than silently ignored.
-- VAD belongs downstream per source. It must not remove the source label or cause
-  genuine microphone speech to be dropped while playback is active.
+- Speaker-priority suppression is a local Candidate-channel gate, not device
+  muting or acoustic echo cancellation. The microphone stream remains open while
+  capture is On so it can resume when playback is quiet; microphone frames are
+  zeroed when loopback is active and for a 350 ms hangover. This intentionally
+  loses Candidate speech during those intervals. The direct Interviewer stream
+  is processed independently and is never suppressed by this gate. If alignment
+  cannot be established within 1.2 seconds, suppress that Candidate frame as a
+  safety fallback; never drop the corresponding Interviewer frame for gating.
 
 ### Bounded operation
 
@@ -207,23 +256,33 @@ frame remainders, and retain resampler state between callbacks.
 
 ### Echo policy
 
-Headphones are the initial requirement. Keep both streams during simultaneous
-speech. **Do not mute or duck the microphone just because playback has energy.**
-That would lose candidate answers during interruptions.
-
-If loudspeakers become necessary, add reference-based acoustic echo cancellation
-as a separate milestone, preferably on Windows before transmission. Simple VAD
-or energy comparison is not a substitute. Echo cancellation requires the render
+The initial POC uses the built-in microphone and speaker. Speaker-priority mode
+zeros Candidate frames whenever the aligned loopback frame has energy above its
+threshold, with a 350 ms hangover. This suppresses candidate interruptions while
+the speaker is active; that is the user's chosen tradeoff. It does not mute or
+duck the Windows microphone or change another app's audio. The interviewer
+loopback keeps running independently. The current W2 build has no acoustic echo
+cancellation and may still retain some echo at frame boundaries or below the
+gate threshold. If the bleed makes Candidate audio unusable while the speaker is
+otherwise quiet, add reference-based AEC as a separate milestone; simple VAD or
+energy comparison is not a substitute. Echo cancellation requires the render
 reference and microphone signals with appropriate timing. [WebRTC processing interface](https://webrtc.googlesource.com/src/+/e583174d1ed9ec00ab0e1b3ebb5989ef6aae4223/modules/audio_processing/include/audio_processing.h)
 
 ## 7. Planned commands and operator flow
 
-These commands are implementation targets, not currently installed tools:
+These Windows commands are available in the current implementation; `select`
+saves an explicit mapping while keeping capture disabled:
 
 ```powershell
 .\.venv\Scripts\python.exe -m capture_agent devices
+.\.venv\Scripts\python.exe -m capture_agent select --microphone-index <index> --playback-index <index>
 .\.venv\Scripts\python.exe -m capture_agent monitor --config private\agent.json
 .\.venv\Scripts\python.exe -m capture_agent preview --config private\agent.json --seconds 10
+```
+
+The following commands are future W4 transport targets, not yet implemented:
+
+```powershell
 .\.venv\Scripts\python.exe -m capture_agent mock-receiver --host 127.0.0.1 --port 8765
 .\.venv\Scripts\python.exe -m capture_agent send --config private\agent.json
 ```
@@ -232,10 +291,13 @@ These commands are implementation targets, not currently installed tools:
 indices/identifiers. Revalidate selections after reboot; a numeric device index
 alone is not a durable identity.
 
-`monitor` shows both meters and counters, without networking or file recording.
-`preview` captures both channels into bounded RAM, stops capture, then lets the
-user listen to Candidate and Interviewer separately. Never replay a preview while
-capture is active, or the playback could be captured again as interviewer audio.
+`monitor` starts in Off state and requires typing `START` before it opens either
+capture stream. It shows both meters and counters; press `S` or Ctrl+C to stop
+both. It does not network or record files. `preview` requires typing `PREVIEW`
+before it opens either capture stream. It captures both channels into bounded
+RAM, stops capture, then lets the user listen to Candidate and Interviewer
+separately. Never replay a preview while capture is active, or the playback
+could be captured again as interviewer audio.
 Stop the ChatGPT Voice conversation before replaying previews.
 
 `send` opens the receiver connection, waits for acceptance, then captures and sends
@@ -244,7 +306,8 @@ capture. There is no always-listening mode.
 
 ## 8. ChatGPT Voice mock interview — Windows only
 
-Use a ChatGPT voice conversation in the **Windows browser**, with headphones.
+Use a ChatGPT voice conversation in the **Windows browser**, with the built-in
+speaker and microphone selected.
 ChatGPT is the interviewer; you are the candidate. Voice availability and limits
 are controlled by the user's ChatGPT account. The agent neither automates that
 conversation nor uses an OpenAI API key. [Official ChatGPT Voice guide](https://help.openai.com/en/articles/20001274-chatgpt-voice)
@@ -279,8 +342,11 @@ every instruction. The test measures actual captured audio, not assumed behavior
 1. Start the browser voice conversation and the agent's monitoring/preview.
 2. Ask ChatGPT to speak, then remain silent while it asks a question.
 3. Its words should be clearly present in the Interviewer preview.
-4. Candidate audio should remain near silence with headphones; small physical
-   leakage/noise is possible and must be evaluated by listening, not meters alone.
+4. Speaker-priority mode should zero Candidate frames while Interviewer is
+   active; the monitor reports the number of speaker-suppressed Candidate
+   frames. Confirm interviewer playback continues and is clear in its preview.
+   Some frame-boundary or quiet-speaker bleed may remain because this setup has
+   no AEC.
 5. If Interviewer is silent, verify the browser's playback endpoint and the matching
    loopback device. Capturing a different output device will not work.
 
@@ -289,15 +355,16 @@ every instruction. The test measures actual captured audio, not assumed behavior
 1. Run five question/answer turns using the prompt above.
 2. Begin your answers with “Candidate answer alpha,” “Candidate answer beta,” etc.
 3. Observe both meters and collect short separate previews as needed.
-4. Verify that ChatGPT questions are routed to Interviewer and your answers to
-   Candidate. No voice profile should be involved.
+4. Verify that ChatGPT questions reach Interviewer and that candidate speech is
+   retained when playback is quiet. Candidate speech during speaker playback may
+   be suppressed. No voice profile should be involved.
 5. For long runs, monitor only. Use bounded short previews for listening checks;
    do not accumulate a full interview recording in RAM.
 
 ### Test D — overlap and silence
 
-1. Speak briefly while ChatGPT is speaking. Your microphone audio must still be
-   captured; interviewer playback must continue independently.
+1. Speak briefly while ChatGPT is speaking. Candidate speech may be intentionally
+   suppressed; interviewer playback must continue independently and clearly.
 2. Leave both sides silent for at least 20 seconds, then resume.
 3. Check that loopback resumes and elapsed time includes the silence.
 4. Repeat with a 15–30 minute mock interview to check drift and bounded queues.
@@ -306,15 +373,18 @@ every instruction. The test measures actual captured audio, not assumed behavior
 
 - Play an unrelated notification: endpoint loopback may capture it. This demonstrates
   why other playback should be quiet during a real interview.
-- Unplug the selected headset: both captures should stop with an actionable error.
+- Disconnect the selected microphone or speaker endpoint: both captures should stop with an actionable error.
 - Change the Windows default device: do not silently relabel or switch sources.
 - Stop the agent while ChatGPT keeps speaking: no more audio should be captured.
-- Check that no WAV files or audio-content logs were created.
+- Without `--save`, check that no WAV files or audio-content logs were created.
 
-**Pass condition:** you can hear correct source separation in short previews and
-observe stable alternating/overlapping capture without a Mac or any calibration.
-Meters alone are insufficient evidence. If this fails, fix capture/routing before
-adding transcription, networking or AI.
+**Pass condition:** the Interviewer preview contains the direct speaker loopback
+without gaps or suppression while playback is active; Candidate is captured when
+playback is quiet and zeroed during speaker activity plus hangover. Confirm the
+overlap behavior and listen for residual echo in Candidate. This W2 build has no
+AEC. Also observe stable alternating/speaker-overlap capture without a Mac or
+calibration. Meters alone are insufficient evidence. Fix routing or stability
+before adding transcription, networking or AI.
 
 ## 9. Proposed transport contract — version 1
 
@@ -422,13 +492,13 @@ this adapter. Do not edit the existing Mac app as part of W0–W4.
 | Milestone | Deliverable | Manual acceptance |
 |---|---|---|
 | W0 — Windows bootstrap | Python package, pinned working dependencies, README, ignored private config; clean platform checks | Package starts on the HP; no audio begins at import/startup |
-| W1 — Device discovery | Enumerate WASAPI mic/playback-loopback, explicit mapping and format validation | Correct headset devices can be selected; stale/invalid selections fail clearly |
+| W1 — Device discovery | Enumerate WASAPI mic/playback-loopback, explicit mapping and format validation | Correct microphone and playback devices can be selected; stale/invalid selections fail clearly |
 | W2 — Dual capture and preview | Two independent streams, conversion, meters, bounded RAM preview and Stop | Microphone-alone and playback-alone tests pass; previews play only after capture stops |
 | W3 — ChatGPT mock interview | Five-turn Windows-only workflow and manual results document | Alternating, overlap, silence and Stop checks pass without Mac/calibration |
 | W4 — Transport with Windows mock receiver | Version-1 framing, authentication, acknowledgements, bounded queues and failure handling | Both roles arrive at local mock receiver; disconnect/retry cannot replay old audio |
 | W5 — Mac integration | Dedicated ingress plus existing-app source adapter and two-source STT | Windows ChatGPT mock produces correctly role-tagged Mac transcripts and short topic cues |
 | W6 — Teams and longer runs | Real call-device checks, 30–60 minute session, recovery and timeline checks | Correct roles, bounded memory and clean Stop/End; observed latency/drift documented |
-| W7 — Optional convenience | Small GUI and packaging only if the CLI POC is useful | Same capture behavior with device selectors and Start/Stop; no automatic background listening |
+| W7 — Optional convenience | Packaging and installer only if the GUI POC is useful | Same capture behavior with device selectors and Start/Stop; no automatic background listening |
 
 Implement in order. W3 is the first central success criterion; do not postpone it
 until the Mac integration. Keep manual tests as the primary validation. Do not
@@ -446,7 +516,7 @@ Use `docs/MANUAL_TEST_RESULTS.md` with one row per scenario:
 | Five alternating turns | | | | | |
 | Brief overlap | | | | | |
 | Silence then resume | | | | | |
-| Headset disconnect | | | | | |
+| Selected device disconnect | | | | | |
 | Network disconnect (W4+) | | | | | |
 | Mac Finish/End (W5+) | | | | | |
 | Longer session | | | | | |
@@ -465,8 +535,12 @@ problem. Fix role separation and stability before tuning inference performance.
 
 - Capture starts only after the user's explicit Start action and a visible notice
   explaining both sources. Display capture state continuously.
-- No persistent audio recording by default. Previews and transport buffers are
-  bounded RAM only and cleared on Stop/End; managed-memory cleanup is best effort.
+- CLI capture does not persist audio by default. The manual GUI offers a
+  recording checkbox (enabled by default for the requested manual listening
+  workflow), names the local `private/recordings/<capture-id>/` folder in the
+  Start confirmation, and reports the two separate WAV paths after Stop.
+  Unchecking it keeps audio temporary; Stop clears the bounded RAM buffers.
+  `preview --save` remains an explicit option for bounded CLI previews.
 - No audio payloads, base64 frames, tokens or transcripts in diagnostic logs.
 - Windows sends audio only to the configured local mock receiver or trusted Mac.
 - ChatGPT Voice itself receives the microphone through its separate browser session;
@@ -474,21 +548,21 @@ problem. Fix role separation and stability before tuning inference performance.
   interview text/context to OpenAI under its existing disclosed configuration.
 - No cloud hosting, telemetry, browser automation or database is required.
 
-## 14. Handoff instruction for implementation on Windows
+## 14. Current Windows handoff
 
-Copy the following request into the new repository's coding session:
-
-> Read IMPLEMENTATION_PLAN.md. Implement W0 and W1 only on this Windows machine.
-> Build a small Python CLI with explicit WASAPI microphone and playback-loopback
-> device discovery. Microphone is Candidate; loopback is Interviewer. Verify the
-> selected device formats and Windows dependencies, pin working versions, and
-> document the exact commands used. Do not begin capture automatically, write
-> recordings, introduce voice calibration or call OpenAI. Keep the implementation
-> simple and use manual checks. Report device-enumeration results without secrets.
-> Stop before W2 so I can inspect device selection.
-
-After W1 is checked, proceed to W2 and then W3 to test the ChatGPT mock interview
-on Windows. Only after those pass should transport and Mac integration begin.
+W0 setup, W1 discovery/selection, W2 dual capture/preview code, and a small
+Tkinter manual-test window are present in this repository. Use `README.md` for
+the exact install and CLI commands. The GUI starts Off with explicit Start and
+Stop controls and a disclosed option to save the two full-length streams as
+separate WAV files under `private/recordings/`. The
+built-in microphone array and Realtek speakers are selected in
+`private/agent.json`; capture remains disabled and speaker-priority suppression
+is enabled. Manually check the W2 microphone-only and playback-only cases using
+short previews, and confirm the Interviewer stream stays clear during overlap.
+Capture requires typing `START` or
+`PREVIEW` at the prompt and remains Off after every command or error. W3's
+five-turn ChatGPT Voice mock interview is the next milestone after those manual
+W2 checks pass. Do not begin transport or Mac integration before W3 passes.
 
 ## 15. Source references
 

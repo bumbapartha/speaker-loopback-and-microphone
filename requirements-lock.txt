@@ -1,0 +1,5 @@
+# W0-W2 direct dependency pins confirmed installable on Windows Python 3.13.14.
+PyAudioWPatch==0.2.12.9
+numpy==2.5.5
+soxr==1.1.0
+
