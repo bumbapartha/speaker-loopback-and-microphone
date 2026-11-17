@@ -9,7 +9,7 @@ from pathlib import Path
 import queue
 import threading
 import time
-from typing import Any
+from typing import Any, Callable
 import wave
 
 from .conversion import FRAME_SAMPLES, INPUT_RATE, PreviewRing, StreamConverter
@@ -96,9 +96,16 @@ class SourceRuntime:
 class CaptureSession:
     """Owns both input handles and processing workers for one capture attempt."""
 
-    def __init__(self, config_path: str | Path, *, recording_dir: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        config_path: str | Path,
+        *,
+        recording_dir: str | Path | None = None,
+        frame_sinks: dict[str, Callable[[Any], None]] | None = None,
+    ) -> None:
         self.config_path = Path(config_path)
         self.recording_dir = Path(recording_dir) if recording_dir is not None else None
+        self.frame_sinks = frame_sinks or {}
         self.recording_paths: dict[str, Path] = {}
         self._recording_writers: dict[str, Any] = {}
         self.config = load_selection(self.config_path)
@@ -180,6 +187,9 @@ class CaptureSession:
                     elif self._started and source.last_callback_ns and not self.stopping.is_set():
                         if now_ns - source.last_callback_ns > MIC_STALL_US * 1000:
                             self._fail("Microphone stopped delivering audio. Both sources are stopping; check the microphone and retry.")
+                except CaptureError as exc:
+                    self._fail(str(exc))
+                    return
                 except Exception as exc:
                     self._fail(f"{source.label} conversion failed: {exc}. Both captures are stopping.")
                     return
@@ -243,10 +253,13 @@ class CaptureSession:
                     if source.key == "candidate"
                     else self.speaker_priority.interviewer_frame
                 )
-                frame_sink = None
+                sinks: list[Callable[[Any], None]] = []
                 if source.key in self._recording_writers:
                     writer = self._recording_writers[source.key]
-                    frame_sink = lambda frame, output=writer: output.writeframes(frame.pcm)
+                    sinks.append(lambda frame, output=writer: output.writeframes(frame.pcm))
+                if source.key in self.frame_sinks:
+                    sinks.append(self.frame_sinks[source.key])
+                frame_sink = lambda frame: [sink(frame) for sink in sinks] if sinks else None
                 source.converter = StreamConverter(
                     source.sample_rate,
                     source.channels,

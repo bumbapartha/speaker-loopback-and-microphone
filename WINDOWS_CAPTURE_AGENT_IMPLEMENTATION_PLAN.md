@@ -1,14 +1,14 @@
 # Windows Interview Capture Agent — Implementation and Manual Test Plan
 
-Status: W0 complete; W1 device discovery and selection implemented; W2 capture, preview and a small manual-test GUI implemented. Built-in devices are selected; manual audio acceptance is pending.
-Prepared: 17 November 2026.
+Status: W0–W2 implemented and manually confirmed for separate WAV capture; W4 WebSocket sender implemented in the GUI. End-to-end Mac receiver validation remains pending.
+Prepared: 17 November 2026. The active version-1 Mac handoff is `WINDOWS_AGENT_HANDOFF.md`; where W4 details here differ, follow that handoff.
 Suggested new repository: `interview-capture-windows`.
 
 Copy this document into the new repository as `IMPLEMENTATION_PLAN.md`. It is
 self-contained so implementation can proceed on the Windows HP laptop without
 access to the Mac repository. The device, selection, monitor and preview
-commands below are implemented. Mock-receiver and transport examples remain
-future targets, not existing commands or endpoints.
+device, selection, monitor and preview commands are implemented. The W4 sender
+is in the GUI; there is no CLI `send` command or mock-receiver command.
 
 ## 1. Objective, capture control and fixed role mapping
 
@@ -82,8 +82,9 @@ Assumptions:
 - Start and Stop; release both devices cleanly on Stop or failure.
 - Short, bounded in-memory previews for checking each channel separately.
 - A manually operated ChatGPT Voice mock interview on Windows.
-- A versioned transport contract and a local Windows mock receiver.
-- Later, authenticated LAN delivery to a Mac receiver and role-aware transcripts.
+- A versioned transport contract and a Windows sender to the trusted-LAN Mac
+  receiver (the active v1 contract is in `WINDOWS_AGENT_HANDOFF.md`).
+- A local Windows mock receiver remains a possible convenience for development.
 
 ### Deferred
 
@@ -93,9 +94,9 @@ Assumptions:
 - Voice profiles, separating individual remote participants and overlap diarisation.
 - Automatic control of ChatGPT Voice or Teams.
 - Transcription, answer generation or OpenAI credentials inside the Windows agent.
-- Cloud audio upload and exporting ChatGPT voice recordings. CLI capture stays
-  temporary unless `preview --save` is explicitly selected. The manual GUI
-  offers an explicit, disclosed recording checkbox for separate local WAVs.
+- Cloud audio upload and exporting ChatGPT voice recordings. The GUI transport
+  streams live to the explicitly configured Mac and does not record locally.
+  CLI `preview --save` remains available for a bounded manual source check.
 
 Driver installation/replacement and system-wide audio reconfiguration are out of
 scope. The agent must use Windows' existing audio stack without changing it.
@@ -280,7 +281,8 @@ saves an explicit mapping while keeping capture disabled:
 .\.venv\Scripts\python.exe -m capture_agent preview --config private\agent.json --seconds 10
 ```
 
-The following commands are future W4 transport targets, not yet implemented:
+The following mock receiver command remains a future convenience. W4 transport
+is started from the GUI using the URL displayed by the Mac:
 
 ```powershell
 .\.venv\Scripts\python.exe -m capture_agent mock-receiver --host 127.0.0.1 --port 8765
@@ -300,9 +302,12 @@ separately. Never replay a preview while capture is active, or the playback
 could be captured again as interviewer audio.
 Stop the ChatGPT Voice conversation before replaying previews.
 
-`send` opens the receiver connection, waits for acceptance, then captures and sends
-both sources. Ctrl+C/Stop closes both handles, clears queues and terminates the
-capture. There is no always-listening mode.
+Connect / Start sends the protocol-v1 `capture.start`, waits for `capture.accepted`
+before opening either device, then streams the two sources as separate JSON text
+frames. The authoritative W4 handshake, frame, acknowledgement and heartbeat
+contract is in `WINDOWS_AGENT_HANDOFF.md`. Stop closes both handles, sends
+`capture.stop` when possible, clears in-memory buffers, and does not replay old
+frames on a later explicit reconnect.
 
 ## 8. ChatGPT Voice mock interview — Windows only
 
@@ -397,18 +402,19 @@ and protocol overhead. This is a design calculation, not a measured throughput.
 ### Connection and lifecycle
 
 - Local mock: `ws://127.0.0.1:8765/ws/capture-agent`.
-- Mac integration: `wss://<mac-host>:8765/ws/capture-agent`.
-- Authenticate the network connection with a bearer token in the handshake header,
-  not in a URL. Verify TLS using a trusted certificate or a pinned private CA;
-  never disable certificate verification as the normal setup.
-- Tokens/configuration/certificates live under ignored `private/`. No OpenAI key
-  belongs on the agent.
-- Production session ID comes from the Mac interview UI. Local mock mode may use
-  its own test session ID and must be explicitly marked as mock mode.
+- Mac integration: `ws://<mac-host>:8765/ws/windows-agent` on the trusted
+  in-house LAN. Protocol-v1 handoff intentionally has no TLS, token, login,
+  certificate or API key; it is not an Internet-facing endpoint.
+- The only transport configuration is the receiver URL, stored locally under
+  ignored `private/receiver.json` with protocol fixed at 1. The Mac owns its
+  single active interview; no session ID is required.
 
-The agent sends a start message with protocol version, interview session ID, a new
-capture ID, normalized format and exactly two sources: `candidate` and `interviewer`.
-The receiver validates it and replies `capture.accepted` before audio starts.
+The active handshake field names and control-message requirements are specified
+in `WINDOWS_AGENT_HANDOFF.md`; that contract replaces the earlier token/TLS draft.
+
+The agent sends the protocol-v1 `capture.start` defined in
+`WINDOWS_AGENT_HANDOFF.md`, with a new capture ID, normalized format and exactly
+two sources. The receiver replies `capture.accepted` before audio starts.
 
 Each audio frame contains:
 
@@ -447,45 +453,13 @@ It must not pretend to implement Whisper, speaker recognition or ChatGPT answers
 
 ## 10. Mac integration boundary — separate work in the existing repo
 
-The current Mac app has browser-originated microphone capture, loopback-only HTTP
-exposure, and speech orchestration built around one active input. It does **not**
-already support this protocol. Two sources cannot simply be pushed into the old
-single-source socket or concatenated into one waveform.
-
-Required Mac-side tasks:
-
-1. Add a **Windows agent** source option to setup. In this mode, Start creates the
-   interview/session pairing details and waits for the agent; the Mac browser must
-   not request its own microphone or start duplicate local capture.
-2. Add a dedicated authenticated LAN ingress. Keep CV/JD/session administration
-   endpoints loopback-only rather than exposing the entire existing API to the LAN.
-   A thin Python WebSocket/TLS bridge on port 8765 is the proposed ingress; it can
-   forward only validated frames to a new loopback-only Java agent endpoint.
-3. Reuse the existing Java/Angular application and native local Whisper service.
-   The bridge is transport-only, not a rewrite of the Mac processor.
-4. Add independent VAD/utterance state and stream timelines for candidate and
-   interviewer. Refactor the current single-active-input orchestration as needed.
-   Sharing one Whisper model is fine, but STT jobs need bounded, fair scheduling;
-   one source must not overwrite or suppress the other's pending utterance.
-5. Attach source-derived CANDIDATE/INTERVIEWER roles to partial and final text.
-   Bypass voiceprint matching and calibration in Windows-agent mode.
-6. Include stream and capture IDs in segment identity, preserve capture timestamps,
-   and merge transcripts by speech time rather than recognition-completion order.
-   Overlap is valid. Late STT results must retain their original source/time.
-7. Add both roles to the same existing OpenAI interview conversation. Send CV/JD
-   once; append new transcript turns with known source roles. Update AI instructions
-   to distinguish source-provided roles from older estimated voice matches.
-8. For out-of-order completion, carry timestamps and instruct context handling
-   appropriately; order utterances over a small bounded window rather than waiting
-   indefinitely for one stream. Do not silently claim perfect chronological order.
-9. Show Windows connection state, both source meters, transcript roles, gaps and
-   late results. Keep existing short topic cues and manual Refresh cues.
-10. Finish/End must stop the agent, discard pending local audio and reject late
-    frames. End uses the existing best-effort provider-conversation cleanup.
-
-Receiver prerequisites are an integration milestone, not a blocker for Windows-only
-capture tests. Define the version-1 protocol in both repositories before building
-this adapter. Do not edit the existing Mac app as part of W0–W4.
+The Mac application is in a separate repository. The supplied
+`WINDOWS_AGENT_HANDOFF.md` says its v1 WebSocket receiver is already implemented;
+that receiver cannot be inspected from this Windows repository. W4 therefore
+implements only the Windows sender. Any later Mac work can connect the receiver's
+two role-tagged streams to separate STT timelines and the existing interview flow.
+Do not add a second Mac-side authentication or TLS layer to this W4 sender: the
+active v1 contract is the trusted-LAN, no-auth contract in the handoff.
 
 ## 11. Implementation milestones
 
@@ -495,15 +469,17 @@ this adapter. Do not edit the existing Mac app as part of W0–W4.
 | W1 — Device discovery | Enumerate WASAPI mic/playback-loopback, explicit mapping and format validation | Correct microphone and playback devices can be selected; stale/invalid selections fail clearly |
 | W2 — Dual capture and preview | Two independent streams, conversion, meters, bounded RAM preview and Stop | Microphone-alone and playback-alone tests pass; previews play only after capture stops |
 | W3 — ChatGPT mock interview | Five-turn Windows-only workflow and manual results document | Alternating, overlap, silence and Stop checks pass without Mac/calibration |
-| W4 — Transport with Windows mock receiver | Version-1 framing, authentication, acknowledgements, bounded queues and failure handling | Both roles arrive at local mock receiver; disconnect/retry cannot replay old audio |
+| W4 — Mac LAN transport sender | Handoff-v1 framing, acknowledgements, heartbeats, bounded queues and terminal failure handling | Pending manual Mac receiver check: both sources arrive with correct roles; disconnect/reconnect does not replay old audio |
 | W5 — Mac integration | Dedicated ingress plus existing-app source adapter and two-source STT | Windows ChatGPT mock produces correctly role-tagged Mac transcripts and short topic cues |
 | W6 — Teams and longer runs | Real call-device checks, 30–60 minute session, recovery and timeline checks | Correct roles, bounded memory and clean Stop/End; observed latency/drift documented |
 | W7 — Optional convenience | Packaging and installer only if the GUI POC is useful | Same capture behavior with device selectors and Start/Stop; no automatic background listening |
 
-Implement in order. W3 is the first central success criterion; do not postpone it
-until the Mac integration. Keep manual tests as the primary validation. Do not
-build a large mocked/automated test suite for this personal POC. Small targeted
-checks for framing/conversion are optional when they resolve a concrete defect.
+W3 remains a separate Windows-only acceptance milestone. The W4 sender code was
+implemented now to match the newer Mac handoff; its end-to-end acceptance remains
+pending a manual session with the Mac receiver. Keep manual tests as the primary
+validation. Do not build a large mocked/automated test suite for this personal
+POC. Small targeted checks for framing/conversion are optional when they resolve
+a concrete defect.
 
 ## 12. Manual results to record
 
@@ -535,12 +511,9 @@ problem. Fix role separation and stability before tuning inference performance.
 
 - Capture starts only after the user's explicit Start action and a visible notice
   explaining both sources. Display capture state continuously.
-- CLI capture does not persist audio by default. The manual GUI offers a
-  recording checkbox (enabled by default for the requested manual listening
-  workflow), names the local `private/recordings/<capture-id>/` folder in the
-  Start confirmation, and reports the two separate WAV paths after Stop.
-  Unchecking it keeps audio temporary; Stop clears the bounded RAM buffers.
-  `preview --save` remains an explicit option for bounded CLI previews.
+- W4 GUI transport does not persist local audio. Frames are sent only to the
+  configured Mac after receiver acceptance and cleared on Stop. The separate
+  CLI `preview --save` option remains limited to a ten-second local check.
 - No audio payloads, base64 frames, tokens or transcripts in diagnostic logs.
 - Windows sends audio only to the configured local mock receiver or trusted Mac.
 - ChatGPT Voice itself receives the microphone through its separate browser session;
@@ -550,19 +523,18 @@ problem. Fix role separation and stability before tuning inference performance.
 
 ## 14. Current Windows handoff
 
-W0 setup, W1 discovery/selection, W2 dual capture/preview code, and a small
-Tkinter manual-test window are present in this repository. Use `README.md` for
-the exact install and CLI commands. The GUI starts Off with explicit Start and
-Stop controls and a disclosed option to save the two full-length streams as
-separate WAV files under `private/recordings/`. The
+W0 setup, W1 discovery/selection, W2 dual capture/preview code, and a Tkinter
+GUI with the W4 WebSocket sender are present in this repository. Use `README.md`
+for setup and the GUI workflow. The GUI starts Off with explicit Connect / Start
+and Stop controls; the selected devices remain closed until the Mac accepts.
+The sender does not record audio locally. The
 built-in microphone array and Realtek speakers are selected in
 `private/agent.json`; capture remains disabled and speaker-priority suppression
-is enabled. Manually check the W2 microphone-only and playback-only cases using
-short previews, and confirm the Interviewer stream stays clear during overlap.
-Capture requires typing `START` or
-`PREVIEW` at the prompt and remains Off after every command or error. W3's
-five-turn ChatGPT Voice mock interview is the next milestone after those manual
-W2 checks pass. Do not begin transport or Mac integration before W3 passes.
+is enabled. W2 stream separation and local WAV saving have been manually
+confirmed. W4 still needs an end-to-end check against the Mac receiver using its
+displayed URL. Preserve the user's built-in mic and speaker setup for that test;
+the headphones suggestion in the handoff is optional guidance, not a device
+requirement. The receiver URL must be reachable on the trusted LAN.
 
 ## 15. Source references
 

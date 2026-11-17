@@ -23,3 +23,12 @@ speaker-priority mode; Candidate frames may be zeroed while playback is active.
 These WAVs are local test artifacts under the ignored `private/` directory and
 must not be committed. Future previews remain in-memory only unless `--save` is
 explicitly supplied.
+
+## W2 GUI recording confirmation
+
+Date: 2026-11-17
+Session folder: `private/recordings/20261117_204611_3c921679/`
+Result: **user confirmed both separate recordings were present and sounded
+correct** after a manual Start / Stop conversation. Numeric levels and exact
+scenario details were not recorded. This validates the local W2 recording path;
+it does not validate the new W4 network sender.

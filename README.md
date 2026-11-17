@@ -1,7 +1,8 @@
 # Windows Interview Capture Agent
 
-W0–W2 implementation: a Windows CLI that discovers WASAPI devices and can
-explicitly capture a selected microphone and playback loopback. Microphones are
+W0–W2 capture and W4 LAN sender: a Windows app that discovers WASAPI devices,
+explicitly captures a selected microphone and playback loopback, and streams
+them to the configured Mac receiver. Microphones are
 assigned the **CANDIDATE** role; playback loopback is assigned **INTERVIEWER**.
 
 ## Safety and current scope
@@ -17,8 +18,10 @@ before pressing Enter to play, or type `Q` to skip playback. Preview buffers are
 cleared after playback.
 
 No audio driver, virtual device, Windows audio setting, or system-wide routing is
-installed or changed. The app does not require administrator privileges. It has
-no network transport, transcription, or AI integration in W0–W2.
+installed or changed. The app does not require administrator privileges. Audio
+is sent only to the explicitly configured receiver after you click Connect / Start
+and `capture.accepted` arrives. This sender does not save local audio
+recordings. Transcription and AI remain on the Mac.
 
 ## Windows setup
 
@@ -51,6 +54,24 @@ the current indexes:
 \.venv\Scripts\python.exe -m capture_agent gui --config private\agent.json
 ```
 
+In the GUI, paste the exact receiver URL shown by the Mac (for example
+`ws://192.168.1.103:8765/ws/windows-agent`) and click **Connect / Start**. The
+Mac operator must first start an interview and select **Use Windows audio**.
+The receiver keeps the connection and acknowledges/discards frames if that Mac
+option is later unchecked; the Windows sender continues heartbeats and frames.
+The URL is saved in ignored `private/receiver.json`; protocol version stays fixed at
+1. The app sends `capture.start` and does not open either audio device until the
+Mac replies `capture.accepted`. Use **Stop** to stop both devices, finish queued
+frames within the acknowledgement window, send `capture.stop`, and close the
+connection. Reconnecting is explicit; old frames are never replayed.
+
+The window shows per-source meters and sent / acknowledged frame counts. The
+sender uses separate `candidate` and `interviewer` sequences, 16 kHz mono
+PCM16LE frames, application heartbeats, and the receiver's maximum-unacknowledged
+limit. A connection loss, server stop, capture error, or five seconds without a
+receiver acknowledgement or pong stops both sources and returns the UI to Off.
+The app does not automatically reconnect.
+
 Replace the example indexes with those shown by `devices`. Selection validates
 that the microphone is an input, the playback device has a matching WASAPI
 loopback input, and both pass the advertised PCM16 format check. It writes the
@@ -64,7 +85,8 @@ INTERVIEWER mapping fixed. Device names and indexes are diagnostic and local.
 
 ## Dependency pins and W1 device discovery
 
-PyAudioWPatch `0.2.12.9`, NumPy `2.5.5`, and SoXR `1.1.0` are pinned. The
+PyAudioWPatch `0.2.12.9`, NumPy `2.5.5`, SoXR `1.1.0`, and websockets
+`15.0.1` are pinned. The
 editable package and dependencies installed under Python 3.13.14 on this
 laptop. Device discovery found one 2-channel, 48 kHz microphone and one
 2-channel, 48 kHz Realtek playback endpoint with matching loopback; PCM16 format
@@ -97,22 +119,19 @@ speaker audio or frame-boundary echo can still appear in Candidate.
   processed independently and is not suppressed. If the streams cannot be
   aligned within 1.2 seconds, that Candidate frame is suppressed as a safety
   fallback; the Interviewer frame is still kept.
-- Capture opens only after the interactive `START` or `PREVIEW` confirmation.
+- CLI capture opens only after the interactive `START` or `PREVIEW` confirmation.
   Noninteractive invocations cannot start capture.
 - The `gui` window starts Off, lets you select and save the two devices, and
-  shows independent live peak bars, RMS, counters, and speaker-suppressed
-  Candidate frames. Start requires a confirmation dialog; Stop and window close
-  release both inputs. Separate Candidate and Interviewer WAV recording is
-  enabled by default in the GUI and is disclosed in the Start confirmation;
-  uncheck it to keep the session temporary. Saved recordings are full length
-  under `private/recordings/<capture-id>/`.
+  shows independent live peak bars, RMS, sent / acknowledged counts, and
+  speaker-suppressed Candidate frames. Clicking Connect / Start is the explicit
+  action; both audio devices remain closed until the receiver accepts. Stop and window
+  close release both inputs. The sender does not save recordings.
 
-W2 manual audio acceptance is still pending. Use the selected built-in devices
-and ChatGPT Voice workflow in `WINDOWS_CAPTURE_AGENT_IMPLEMENTATION_PLAN.md`;
-do not treat successful installation or format checks as proof of source
-separation.
+The user manually confirmed a saved GUI conversation sounded correct; see
+`docs/MANUAL_TEST_RESULTS.md`. W4 Mac receiver transport acceptance is still
+pending. Keep the selected built-in microphone and speaker for the user's setup.
 
-The optional `--save` flag writes two separate mono 16 kHz PCM WAV files under
+The optional CLI preview `--save` flag writes two separate mono 16 kHz PCM WAV files under
 `private/recordings/<capture-id>/candidate.wav` and `interviewer.wav`. That
 folder is ignored by Git. Saving requires the explicit `PREVIEW` confirmation;
 without `--save`, no audio files are written. Candidate WAVs contain the
