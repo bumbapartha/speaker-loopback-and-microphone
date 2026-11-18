@@ -46,13 +46,13 @@ the Mac:
 
 | Windows audio source | Assigned role | Initial mock-interview source |
 |---|---|---|
-| Selected microphone input | CANDIDATE | You speaking into the built-in laptop microphone |
-| Loopback of selected playback device | INTERVIEWER | ChatGPT Voice speaking through the built-in speakers |
+| Selected microphone input | MIC | You speaking into the built-in laptop microphone |
+| Loopback of selected playback device | SPEAKER | ChatGPT Voice speaking through the built-in speakers |
 
 Roles come from the capture source, not voice characteristics. No pitch filter,
 voice calibration, voiceprint matching, gender inference or speaker diarisation
 is required to distinguish these two roles. Multiple remote interviewers can
-share the INTERVIEWER role. This does not identify individual interviewers.
+share the SPEAKER role. This does not identify individual interviewers.
 
 Assumptions:
 
@@ -62,10 +62,10 @@ Assumptions:
   playback loopback captures the speaker mix directly; the built-in microphone
   may also acoustically pick up that speaker audio.
 - Speaker-priority mode is enabled by default: when loopback playback is active,
-  Candidate preview frames are replaced with silence for the overlap plus a
-  short hangover. The Interviewer loopback stream is never gated. The user
-  accepts losing Candidate speech during those intervals to protect the
-  Interviewer channel from speaker bleed.
+  Mic preview frames are replaced with silence for the overlap plus a
+  short hangover. The Speaker loopback stream is never gated. The user
+  accepts losing Mic speech during those intervals to protect the
+  Speaker channel from speaker bleed.
 - The Windows agent is capture/transport software. The Mac owns transcription,
   CV/JD context, AI cues and the interview session.
 - The first useful test must work entirely on Windows, without a Mac or API key
@@ -103,7 +103,7 @@ scope. The agent must use Windows' existing audio stack without changing it.
 
 Standard WASAPI endpoint loopback captures the selected device's playback mix,
 not just Teams or ChatGPT. Other applications and notifications on that endpoint
-can appear as INTERVIEWER audio. Close/mute unrelated applications for the POC.
+can appear as SPEAKER audio. Close/mute unrelated applications for the POC.
 Microsoft documents both [endpoint loopback](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording)
 and a separate [process-loopback capture mechanism](https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/).
 Process-specific capture is a possible later enhancement, not a first milestone.
@@ -235,14 +235,14 @@ frame remainders, and retain resampler state between callbacks.
   zero audio or a defined silence event; the first protocol uses zero frames.
 - Measure clock drift during longer tests. Approximate timestamps are acceptable,
   but cumulative skew must be visible rather than silently ignored.
-- Speaker-priority suppression is a local Candidate-channel gate, not device
+- Speaker-priority suppression is a local Mic-channel gate, not device
   muting or acoustic echo cancellation. The microphone stream remains open while
   capture is On so it can resume when playback is quiet; microphone frames are
   zeroed when loopback is active and for a 350 ms hangover. This intentionally
-  loses Candidate speech during those intervals. The direct Interviewer stream
+  loses Mic speech during those intervals. The direct Speaker stream
   is processed independently and is never suppressed by this gate. If alignment
-  cannot be established within 1.2 seconds, suppress that Candidate frame as a
-  safety fallback; never drop the corresponding Interviewer frame for gating.
+  cannot be established within 1.2 seconds, suppress that Mic frame as a
+  safety fallback; never drop the corresponding Speaker frame for gating.
 
 ### Bounded operation
 
@@ -258,13 +258,13 @@ frame remainders, and retain resampler state between callbacks.
 ### Echo policy
 
 The initial POC uses the built-in microphone and speaker. Speaker-priority mode
-zeros Candidate frames whenever the aligned loopback frame has energy above its
+zeros Mic frames whenever the aligned loopback frame has energy above its
 threshold, with a 350 ms hangover. This suppresses candidate interruptions while
 the speaker is active; that is the user's chosen tradeoff. It does not mute or
 duck the Windows microphone or change another app's audio. The interviewer
 loopback keeps running independently. The current W2 build has no acoustic echo
 cancellation and may still retain some echo at frame boundaries or below the
-gate threshold. If the bleed makes Candidate audio unusable while the speaker is
+gate threshold. If the bleed makes Mic audio unusable while the speaker is
 otherwise quiet, add reference-based AEC as a separate milestone; simple VAD or
 energy comparison is not a substitute. Echo cancellation requires the render
 reference and microphone signals with appropriate timing. [WebRTC processing interface](https://webrtc.googlesource.com/src/+/e583174d1ed9ec00ab0e1b3ebb5989ef6aae4223/modules/audio_processing/include/audio_processing.h)
@@ -297,7 +297,7 @@ alone is not a durable identity.
 capture stream. It shows both meters and counters; press `S` or Ctrl+C to stop
 both. It does not network or record files. `preview` requires typing `PREVIEW`
 before it opens either capture stream. It captures both channels into bounded
-RAM, stops capture, then lets the user listen to Candidate and Interviewer
+RAM, stops capture, then lets the user listen to Mic and Speaker
 separately. Never replay a preview while capture is active, or the playback
 could be captured again as interviewer audio.
 Stop the ChatGPT Voice conversation before replaying previews.
@@ -320,11 +320,11 @@ conversation nor uses an OpenAI API key. [Official ChatGPT Voice guide](https://
 The existing Mac answer assistant's API usage is separate and only becomes relevant
 in W5. Do not introduce an API-powered voice interviewer for this first test.
 
-### Interviewer instructions to paste into ChatGPT
+### Speaker instructions to paste into ChatGPT
 
 > Act as my mock technical interviewer for a Java and distributed-systems role.
 > Ask one question at a time and let me finish my answer before continuing.
-> Start each main question with “Interviewer question number one,” then increment
+> Start each main question with “Speaker question number one,” then increment
 > the number. Keep questions short. Ask occasional brief follow-ups about my answer.
 > Do not speak my candidate marker phrase or repeat my entire answer aloud.
 > After five questions, finish the interview and give brief verbal feedback.
@@ -336,8 +336,8 @@ every instruction. The test measures actual captured audio, not assumed behavior
 ### Test A — microphone alone
 
 1. Leave browser playback silent and run `monitor`.
-2. Say: “Candidate answer alpha. I am speaking into the Windows microphone.”
-3. Candidate meter/counters should respond. Interviewer should remain near silence.
+2. Say: “Mic answer alpha. I am speaking into the Windows microphone.”
+3. Mic meter/counters should respond. Speaker should remain near silence.
 4. Use a short preview, stop capture, and listen to each channel separately.
 5. If your own voice appears clearly in loopback, check Windows “Listen to this
    device,” software microphone monitoring and virtual audio routing.
@@ -346,29 +346,29 @@ every instruction. The test measures actual captured audio, not assumed behavior
 
 1. Start the browser voice conversation and the agent's monitoring/preview.
 2. Ask ChatGPT to speak, then remain silent while it asks a question.
-3. Its words should be clearly present in the Interviewer preview.
-4. Speaker-priority mode should zero Candidate frames while Interviewer is
-   active; the monitor reports the number of speaker-suppressed Candidate
+3. Its words should be clearly present in the Speaker preview.
+4. Speaker-priority mode should zero Mic frames while Speaker is
+   active; the monitor reports the number of speaker-suppressed Mic
    frames. Confirm interviewer playback continues and is clear in its preview.
    Some frame-boundary or quiet-speaker bleed may remain because this setup has
    no AEC.
-5. If Interviewer is silent, verify the browser's playback endpoint and the matching
+5. If Speaker is silent, verify the browser's playback endpoint and the matching
    loopback device. Capturing a different output device will not work.
 
 ### Test C — alternating interview
 
 1. Run five question/answer turns using the prompt above.
-2. Begin your answers with “Candidate answer alpha,” “Candidate answer beta,” etc.
+2. Begin your answers with “Mic answer alpha,” “Mic answer beta,” etc.
 3. Observe both meters and collect short separate previews as needed.
-4. Verify that ChatGPT questions reach Interviewer and that candidate speech is
-   retained when playback is quiet. Candidate speech during speaker playback may
+4. Verify that ChatGPT questions reach Speaker and that candidate speech is
+   retained when playback is quiet. Mic speech during speaker playback may
    be suppressed. No voice profile should be involved.
 5. For long runs, monitor only. Use bounded short previews for listening checks;
    do not accumulate a full interview recording in RAM.
 
 ### Test D — overlap and silence
 
-1. Speak briefly while ChatGPT is speaking. Candidate speech may be intentionally
+1. Speak briefly while ChatGPT is speaking. Mic speech may be intentionally
    suppressed; interviewer playback must continue independently and clearly.
 2. Leave both sides silent for at least 20 seconds, then resume.
 3. Check that loopback resumes and elapsed time includes the silence.
@@ -383,10 +383,10 @@ every instruction. The test measures actual captured audio, not assumed behavior
 - Stop the agent while ChatGPT keeps speaking: no more audio should be captured.
 - Without `--save`, check that no WAV files or audio-content logs were created.
 
-**Pass condition:** the Interviewer preview contains the direct speaker loopback
-without gaps or suppression while playback is active; Candidate is captured when
+**Pass condition:** the Speaker preview contains the direct speaker loopback
+without gaps or suppression while playback is active; Mic is captured when
 playback is quiet and zeroed during speaker activity plus hangover. Confirm the
-overlap behavior and listen for residual echo in Candidate. This W2 build has no
+overlap behavior and listen for residual echo in Mic. This W2 build has no
 AEC. Also observe stable alternating/speaker-overlap capture without a Mac or
 calibration. Meters alone are insufficient evidence. Fix routing or stability
 before adding transcription, networking or AI.
@@ -429,7 +429,7 @@ Each audio frame contains:
 | `pcmBase64` | Base64 of exactly 640 PCM bytes |
 
 Do not trust arbitrary role strings: the receiver maps the two allowed source
-identifiers to CANDIDATE and INTERVIEWER. Hardware/device names need not travel
+identifiers to MIC and SPEAKER. Hardware/device names need not travel
 with every frame. They remain local diagnostics unless explicitly needed.
 
 ### Acknowledgements and failure
@@ -485,9 +485,9 @@ a concrete defect.
 
 Use `docs/MANUAL_TEST_RESULTS.md` with one row per scenario:
 
-| Scenario | Candidate source correct? | Interviewer source correct? | Echo/duplication? | Stop/recovery result | Notes |
+| Scenario | Mic source correct? | Speaker source correct? | Echo/duplication? | Stop/recovery result | Notes |
 |---|---|---|---|---|---|
-| Candidate only | | | | | |
+| Mic only | | | | | |
 | ChatGPT only | | | | | |
 | Five alternating turns | | | | | |
 | Brief overlap | | | | | |

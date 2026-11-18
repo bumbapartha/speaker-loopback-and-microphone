@@ -21,7 +21,7 @@ ZERO_PCM = bytes(FRAME_SAMPLES * 2)
 class SpeakerPriorityGate:
     """Keep interviewer frames intact and silence overlapping candidate frames.
 
-    Candidate frames wait briefly for the interviewer timeline to reach the
+    Mic frames wait briefly for the interviewer timeline to reach the
     same point. A bounded history of active playback intervals covers callback
     jitter and a short acoustic tail from the laptop speakers.
     """

@@ -37,24 +37,24 @@ def command_devices(_args: argparse.Namespace) -> int:
         return 2
 
     print("Capture state: OFF (device enumeration only; no audio stream is open).")
-    print("\nMicrophones (CANDIDATE):")
+    print("\nMicrophones (Mic):")
     if microphones:
         for device in microphones:
-            print(_device_line(device, "CANDIDATE"))
+            print(_device_line(device, "Mic"))
     else:
         print("  No WASAPI microphone inputs found.")
 
-    print("\nPlayback endpoints (select one for INTERVIEWER loopback):")
+    print("\nPlayback endpoints (select one for Speaker loopback):")
     if playbacks:
         for device in playbacks:
             print(_device_line(device, "PLAYBACK"))
     else:
         print("  No WASAPI playback endpoints found.")
 
-    print("\nPlayback loopback inputs (INTERVIEWER):")
+    print("\nPlayback loopback inputs (Speaker):")
     if loopbacks:
         for device in loopbacks:
-            print(_device_line(device, "INTERVIEWER"))
+            print(_device_line(device, "Speaker"))
     else:
         print("  No WASAPI loopback inputs found.")
     print("\nDevice indexes can change after reconnects or reboot. Re-run this command before selection.")
@@ -73,9 +73,9 @@ def command_select(args: argparse.Namespace) -> int:
     candidate = config["sources"]["candidate"]
     interviewer = config["sources"]["interviewer"]
     print("Selected devices saved. Capture state remains OFF; no audio stream was opened.")
-    print(f"CANDIDATE microphone: [{candidate['device_index']}] {candidate['device_name']}")
-    print(f"INTERVIEWER playback: [{interviewer['playback_index']}] {interviewer['playback_name']}")
-    print(f"INTERVIEWER loopback: [{interviewer['loopback_index']}] {interviewer['loopback_name']}")
+    print(f"Mic microphone: [{candidate['device_index']}] {candidate['device_name']}")
+    print(f"Speaker playback: [{interviewer['playback_index']}] {interviewer['playback_name']}")
+    print(f"Speaker loopback: [{interviewer['loopback_index']}] {interviewer['loopback_name']}")
     print(f"Configuration: {output_path}")
     return 0
 
@@ -94,10 +94,10 @@ def _capture_notice(args: argparse.Namespace) -> bool | None:
         print("An interactive console is required to start capture. Capture remains OFF.", file=sys.stderr)
         return None
     print("\nCAPTURE NOTICE: confirming will turn audio capture ON for these two inputs:")
-    print(f"  CANDIDATE microphone: [{candidate['device_index']}] {candidate['device_name']}")
-    print(f"  INTERVIEWER playback loopback: [{interviewer['loopback_index']}] {interviewer['loopback_name']}")
+    print(f"  Mic microphone: [{candidate['device_index']}] {candidate['device_name']}")
+    print(f"  Speaker playback loopback: [{interviewer['loopback_index']}] {interviewer['loopback_name']}")
     print("The agent captures both sources independently. It does not change drivers or mute other apps.")
-    print(f"Speaker priority: {'ON' if config.get('speaker_priority', True) else 'OFF'}; when ON, Candidate audio is suppressed during speaker activity.")
+    print(f"Speaker priority: {'ON' if config.get('speaker_priority', True) else 'OFF'}; when ON, Mic audio is suppressed during speaker activity.")
     if args.command == "preview" and args.save:
         print(f"This preview will also save two separate WAV files under: {args.save_dir}")
     expected = "PREVIEW" if args.command == "preview" else "START"
@@ -134,10 +134,10 @@ def command_monitor(args: argparse.Namespace) -> int:
             interviewer = session.metrics("interviewer")
             elapsed = time.perf_counter() - started
             line = (
-                f"\rON {elapsed:6.1f}s | CANDIDATE rms {candidate['rms']:.3f} peak {candidate['peak']:.3f} "
+                f"\rON {elapsed:6.1f}s | Mic rms {candidate['rms']:.3f} peak {candidate['peak']:.3f} "
                 f"captured {candidate['captured_seconds']:.1f}s queued {candidate['queued_frames']} dropped {candidate['dropped_frames']} "
                 f"speaker-suppressed {candidate['speaker_suppressed_frames']} "
-                f"| INTERVIEWER rms {interviewer['rms']:.3f} peak {interviewer['peak']:.3f} "
+                f"| Speaker rms {interviewer['rms']:.3f} peak {interviewer['peak']:.3f} "
                 f"captured {interviewer['captured_seconds']:.1f}s queued {interviewer['queued_frames']} dropped {interviewer['dropped_frames']}"
             )
             print(line, end="", flush=True)
@@ -194,11 +194,11 @@ def command_preview(args: argparse.Namespace) -> int:
         if args.save:
             capture_id = datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8]
             output_dir = Path(args.save_dir) / capture_id
-            candidate_path = save_preview_wav(session.sources["candidate"].ring.snapshot(), output_dir / "candidate.wav")
-            interviewer_path = save_preview_wav(session.sources["interviewer"].ring.snapshot(), output_dir / "interviewer.wav")
+            candidate_path = save_preview_wav(session.sources["candidate"].ring.snapshot(), output_dir / "mic.wav")
+            interviewer_path = save_preview_wav(session.sources["interviewer"].ring.snapshot(), output_dir / "speaker.wav")
             print("Saved separate mono 16 kHz PCM WAV files:")
-            print(f"  CANDIDATE: {candidate_path}")
-            print(f"  INTERVIEWER: {interviewer_path}")
+            print(f"  Mic: {candidate_path}")
+            print(f"  Speaker: {interviewer_path}")
         print("Stop ChatGPT Voice now so it cannot speak over or react to the preview.")
         try:
             playback_choice = input("Press Enter to play the previews separately, or type Q to skip playback: ")
@@ -210,7 +210,7 @@ def command_preview(args: argparse.Namespace) -> int:
         for key in ("candidate", "interviewer"):
             source = session.sources[key]
             if key == "candidate" and source.converter:
-                print(f"Candidate frames suppressed during speaker activity: {source.converter.suppressed_frames}.")
+                print(f"Mic frames suppressed during speaker activity: {source.converter.suppressed_frames}.")
             print(f"Playing {source.label} preview ({len(source.ring.snapshot()) * 0.02:.1f} seconds).")
             play_preview(
                 source.ring.snapshot(),

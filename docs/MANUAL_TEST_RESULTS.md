@@ -17,8 +17,8 @@ Capture state after test: Off; both input streams released.
 Result: **inconclusive, not a pass**. The commands opened and stopped both
 streams and wrote two separate WAVs, but this capture window did not contain
 audible test speech or speaker playback. Repeat while ChatGPT Voice is actively
-speaking through the selected Realtek speakers. Candidate speech is optional in
-speaker-priority mode; Candidate frames may be zeroed while playback is active.
+speaking through the selected Realtek speakers. Mic speech is optional in
+speaker-priority mode; Mic frames may be zeroed while playback is active.
 
 These WAVs are local test artifacts under the ignored `private/` directory and
 must not be committed. Future previews remain in-memory only unless `--save` is
@@ -39,7 +39,7 @@ Date: 2026-11-17
 
 Python source compilation and a temporary local HTTP/WebSocket mock check passed:
 waiting with no capture before ready; automatic connection after ready; separate
-Candidate/Interviewer payloads and counters; pause with heartbeat and no PCM;
+Mic/Speaker payloads and counters; pause with heartbeat and no PCM;
 resume with the same captureId/counters; automatic retry after normal close 1000;
 fresh captureId/counters after reconnect; Stop disables retries. No test framework
 or permanent test suite was added. A per-source sink callback binding was also
@@ -51,15 +51,15 @@ interview and toggle Use Windows audio off/on. Confirm both role transcripts,
 paused audio silence, automatic recovery after restarting the Mac, and Stop.
 Real Windows audio/GUI acceptance remains pending.
 
-## Candidate queue overflow fix (synthetic reference stall)
+## Mic queue overflow fix (synthetic reference stall)
 
-The Candidate worker previously waited up to 1.2 seconds for loopback alignment,
+The Mic worker previously waited up to 1.2 seconds for loopback alignment,
 longer than its native input queue capacity. A focused synthetic check reproduced
 an overflow at 46 queued packets. With a 350 ms maximum wait and a silence fallback
 that avoids repeated waits until the delayed reference catches up, the same check
 completed without overflow (14 packets maximum in this run). Separate checks
-confirmed recovery after the reference catches up, Candidate suppression during
-speaker activity, and unchanged Interviewer frames. Source compilation passed.
+confirmed recovery after the reference catches up, Mic suppression during
+speaker activity, and unchanged Speaker frames. Source compilation passed.
 Stop now releases alignment waits before joining workers; callback timestamps are
 no longer overwritten by older queued packets. Actual HP audio retesting is pending.
 
@@ -67,7 +67,7 @@ no longer overwritten by older queued packets. Actual HP audio retesting is pend
 
 Date: 2026-11-18
 
-A focused synthetic sender check injected a Candidate queue-overflow CaptureError.
+A focused synthetic sender check injected a Mic queue-overflow CaptureError.
 The sender released capture, showed a non-error recovery status, retried readiness
 after five seconds and resumed with a fresh captureId/counters. Normal WebSocket
 close also recovered automatically. Pause/resume heartbeats, role-separated frames

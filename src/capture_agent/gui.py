@@ -22,7 +22,7 @@ class CaptureWindow:
         self.playbacks: list[AudioDevice] = []
         self._mic_by_label: dict[str, AudioDevice] = {}
         self._playback_by_label: dict[str, AudioDevice] = {}
-        self.root.title("Windows Capture Agent")
+        self.root.title("Interview Preparation · Windows Audio")
         self.root.minsize(820, 500)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -69,16 +69,16 @@ class CaptureWindow:
         ttk.Label(outer, text="Mac receiver URL").grid(row=2, column=0, sticky="w", padx=(0, 12), pady=4)
         self.receiver_entry = ttk.Entry(outer, textvariable=self.receiver_url_var, width=66)
         self.receiver_entry.grid(row=2, column=1, columnspan=2, sticky="ew", pady=4)
-        ttk.Label(outer, text="CANDIDATE microphone").grid(row=3, column=0, sticky="w", padx=(0, 12), pady=4)
+        ttk.Label(outer, text="Mic").grid(row=3, column=0, sticky="w", padx=(0, 12), pady=4)
         self.mic_combo = ttk.Combobox(outer, textvariable=self.mic_var, state="readonly", width=66)
         self.mic_combo.grid(row=3, column=1, columnspan=2, sticky="ew", pady=4)
-        ttk.Label(outer, text="INTERVIEWER playback").grid(row=4, column=0, sticky="w", padx=(0, 12), pady=4)
+        ttk.Label(outer, text="Speaker").grid(row=4, column=0, sticky="w", padx=(0, 12), pady=4)
         self.playback_combo = ttk.Combobox(outer, textvariable=self.playback_var, state="readonly", width=66)
         self.playback_combo.grid(row=4, column=1, columnspan=2, sticky="ew", pady=4)
 
         self.priority_check = ttk.Checkbutton(
             outer,
-            text="Speaker priority: suppress Candidate while speaker audio is active",
+            text="Speaker priority: suppress Mic while speaker audio is active",
             variable=self.speaker_priority_var,
         )
         self.priority_check.grid(row=5, column=0, columnspan=3, sticky="w", pady=(7, 8))
@@ -86,16 +86,16 @@ class CaptureWindow:
         ttk.Separator(outer).grid(row=6, column=0, columnspan=3, sticky="ew", pady=4)
         self.candidate_rms = tk.StringVar(value="RMS 0.000 | peak 0.000 | captured 0.0 s")
         self.interviewer_rms = tk.StringVar(value="RMS 0.000 | peak 0.000 | captured 0.0 s")
-        ttk.Label(outer, text="CANDIDATE").grid(row=7, column=0, sticky="w", pady=(8, 2))
+        ttk.Label(outer, text="Mic").grid(row=7, column=0, sticky="w", pady=(8, 2))
         self.candidate_bar = ttk.Progressbar(outer, maximum=100, mode="determinate")
         self.candidate_bar.grid(row=7, column=1, sticky="ew", padx=8, pady=(8, 2))
         ttk.Label(outer, textvariable=self.candidate_rms).grid(row=8, column=0, columnspan=3, sticky="w")
-        ttk.Label(outer, text="INTERVIEWER").grid(row=9, column=0, sticky="w", pady=(10, 2))
+        ttk.Label(outer, text="Speaker").grid(row=9, column=0, sticky="w", pady=(10, 2))
         self.interviewer_bar = ttk.Progressbar(outer, maximum=100, mode="determinate")
         self.interviewer_bar.grid(row=9, column=1, sticky="ew", padx=8, pady=(10, 2))
         ttk.Label(outer, textvariable=self.interviewer_rms).grid(row=10, column=0, columnspan=3, sticky="w")
 
-        self.transport_stats = tk.StringVar(value="Sent: Candidate 0 · Interviewer 0 | Acknowledged: Candidate 0 · Interviewer 0")
+        self.transport_stats = tk.StringVar(value="Sent: Mic 0 · Speaker 0 | Acknowledged: Mic 0 · Speaker 0")
         ttk.Label(outer, textvariable=self.transport_stats).grid(row=11, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
         controls = ttk.Frame(outer)
@@ -206,7 +206,7 @@ class CaptureWindow:
             return
         self.sender = sender
         self._last_sender_state = "CONNECTING"
-        self.transport_stats.set("Sent: Candidate 0 · Interviewer 0 | Acknowledged: Candidate 0 · Interviewer 0")
+        self.transport_stats.set("Sent: Mic 0 · Speaker 0 | Acknowledged: Mic 0 · Speaker 0")
         self.state_var.set("CONNECTING")
         self.message_var.set("Checking Mac readiness. Audio devices remain Off until Windows audio is selected.")
         self.start_button.configure(state="disabled")
@@ -244,8 +244,8 @@ class CaptureWindow:
                 self.interviewer_rms.set("RMS 0.000 | peak 0.000 | captured 0.0 s")
             sent, acked = snapshot["sent"], snapshot["acked"]
             self.transport_stats.set(
-                f"Sent: Candidate {sent['candidate']} · Interviewer {sent['interviewer']} | "
-                f"Acknowledged: Candidate {acked['candidate']} · Interviewer {acked['interviewer']}"
+                f"Sent: Mic {sent['candidate']} · Speaker {sent['interviewer']} | "
+                f"Acknowledged: Mic {acked['candidate']} · Speaker {acked['interviewer']}"
             )
             if state == "OFF" and self._last_sender_state != "OFF":
                 self._reset_connection_controls()

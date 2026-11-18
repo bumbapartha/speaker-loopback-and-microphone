@@ -122,12 +122,12 @@ class CaptureSession:
         interviewer = self.config["sources"]["interviewer"]
         self.sources = {
             "candidate": SourceRuntime(
-                "candidate", "CANDIDATE", candidate["device_index"], candidate["device_name"],
+                "candidate", "Mic", candidate["device_index"], candidate["device_name"],
                 candidate["sample_rate"], candidate["channels"],
                 queue.Queue(maxsize=max(1, min(RAW_QUEUE_CHUNKS, candidate["sample_rate"] // FRAME_BUFFER))), PreviewRing(),
             ),
             "interviewer": SourceRuntime(
-                "interviewer", "INTERVIEWER", interviewer["loopback_index"], interviewer["loopback_name"],
+                "interviewer", "Speaker", interviewer["loopback_index"], interviewer["loopback_name"],
                 interviewer["sample_rate"], interviewer["channels"],
                 queue.Queue(maxsize=max(1, min(RAW_QUEUE_CHUNKS, interviewer["sample_rate"] // FRAME_BUFFER))), PreviewRing(),
             ),
@@ -212,7 +212,7 @@ class CaptureSession:
             if self.recording_dir is not None:
                 self.recording_dir.mkdir(parents=True, exist_ok=False)
                 for key in ("candidate", "interviewer"):
-                    path = self.recording_dir / f"{key}.wav"
+                    path = self.recording_dir / ("mic.wav" if key == "candidate" else "speaker.wav")
                     writer = wave.open(str(path), "wb")
                     writer.setnchannels(1)
                     writer.setsampwidth(2)

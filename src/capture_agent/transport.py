@@ -125,7 +125,7 @@ class WebSocketCaptureSender:
                     sent = self._sent[source]
                     acked = self._acked[source]
                 raise CaptureError(
-                    f"{source.title()} transport queue reached {LOCAL_QUEUE_FRAMES} frames "
+                    f"{'Mic' if source == 'candidate' else 'Speaker'} transport queue reached {LOCAL_QUEUE_FRAMES} frames "
                     f"(sent {sent}, acknowledged {acked}). "
                     "Both audio streams are stopping; check receiver acknowledgements and network speed."
                 ) from exc
@@ -361,7 +361,7 @@ class WebSocketCaptureSender:
                     with self._lock:
                         self._session = session
                     await asyncio.to_thread(session.start)
-                    self._set_state("ON", "Streaming Candidate and Interviewer to the Mac.")
+                    self._set_state("ON", "Streaming Mic and Speaker to the Mac.")
                     # Recheck queued controls after device startup before sending PCM.
                     continue
                 session.check_health()

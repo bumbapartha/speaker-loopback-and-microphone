@@ -29,7 +29,7 @@ The Mac receiver is implemented against this contract. Keep source capture uncha
 > values for the specified bound. No recordings or large automated test suite.
 >
 > Test manually with ChatGPT Voice on Windows and headphones: its spoken replies
-> must arrive as Interviewer; my microphone must arrive as Candidate. The Mac
+> must arrive as Speaker; my microphone must arrive as Mic. The Mac
 > handles transcription and AI. Do not add local recognition or voice calibration
 > in this task. Verify Stop/Finish and brief simultaneous speech. Follow the exact
 > message shapes below and report actual Windows results.
@@ -51,7 +51,7 @@ Give the Windows Codex this update:
 > On true resume live audio with the same captureId and per-source counters. During
 > this pause freeze the normalized transport timestamps: each next frame remains
 > firstTimestampUs + sequence*20000. Do not send zero frames for the unchecked time.
-> Candidate suppression DURING transmission still sends zero candidate frames.
+> Mic suppression DURING transmission still sends zero candidate frames.
 > Heartbeats before capture.start may omit captureId; after accepted include it.
 > Process control messages throughout the handshake, applying the newest value.
 > On close (including normal 1000), transport failure, missing pong for 10 seconds,

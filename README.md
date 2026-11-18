@@ -1,9 +1,9 @@
-# Windows Interview Capture Agent
+# Interview Preparation · Windows Audio
 
 W0–W2 capture and W4 LAN sender: a Windows app that discovers WASAPI devices,
 explicitly captures a selected microphone and playback loopback, and streams
 them to the configured Mac receiver. Microphones are
-assigned the **CANDIDATE** role; playback loopback is assigned **INTERVIEWER**.
+assigned the **MIC** role; playback loopback is assigned **SPEAKER**.
 
 ## Safety and current scope
 
@@ -12,8 +12,8 @@ selection do not open an audio stream. `monitor` and `preview` display the two
 selected sources and require an exact interactive confirmation before opening
 both input streams. `monitor` shows separate meters until you press `S` or
 Ctrl+C, then clears queues and previews. `preview` captures at most ten seconds
-into bounded RAM, stops and releases both inputs, then plays Candidate and
-Interviewer separately. It pauses after capture so you can stop ChatGPT Voice
+into bounded RAM, stops and releases both inputs, then plays Mic and
+Speaker separately. It pauses after capture so you can stop ChatGPT Voice
 before pressing Enter to play, or type `Q` to skip playback. Preview buffers are
 cleared after playback.
 
@@ -68,7 +68,7 @@ queued audio is discarded, and the socket keeps exchanging one-second heartbeats
 Rechecking resumes live capture on the same connection with the same captureId,
 sequence counters and normalized timestamps. No paused audio is replayed. Source
 timestamps freeze during the pause; candidate suppression during active streaming
-still sends silence frames to preserve timing. Interviewer audio is never gated.
+still sends silence frames to preserve timing. Speaker audio is never gated.
 
 Connection loss, normal close 1000, Mac Finish/End or ten seconds without a pong
 or acknowledgement releases both inputs and returns to five-second readiness
@@ -93,8 +93,8 @@ index is stale or invalid, selection fails and does not switch to another
 device. No capture or playback stream is opened by `select`.
 
 Use the selected playback endpoint's matching loopback input, not a similarly
-named microphone. Keep the microphone-to-CANDIDATE and playback-loopback-to-
-INTERVIEWER mapping fixed. Device names and indexes are diagnostic and local.
+named microphone. Keep the microphone-to-MIC and playback-loopback-to-
+SPEAKER mapping fixed. Device names and indexes are diagnostic and local.
 
 ## Dependency pins and W1 device discovery
 
@@ -107,12 +107,12 @@ checks passed for both inputs and the output endpoint. These built-in devices
 are now saved in ignored `private/agent.json`, with capture still disabled.
 
 With the built-in speaker, the microphone can also hear the interviewer
-acoustically. Speaker-priority is enabled in the saved config: Candidate frames
+acoustically. Speaker-priority is enabled in the saved config: Mic frames
 are replaced with silence while loopback speaker activity is present, plus a
-350 ms hangover. The Interviewer stream is never gated. Candidate speech during
+350 ms hangover. The Speaker stream is never gated. Mic speech during
 that time will be lost, as you said is acceptable. This is software frame
 suppression; it does not mute the Windows microphone device or use AEC. Quiet
-speaker audio or frame-boundary echo can still appear in Candidate.
+speaker audio or frame-boundary echo can still appear in Mic.
 
 ## W2 behavior
 
@@ -127,16 +127,16 @@ speaker audio or frame-boundary echo can still appear in Candidate.
 - Playback loopback idle periods are represented with timed zero frames. Preview
   playback opens only the selected output after both input streams have stopped.
 - Speaker-priority mode waits for the aligned loopback timeline, then zeros
-  Candidate frames during active speaker playback and for 350 ms afterward. The
-  monitor shows how many Candidate frames were suppressed. Interviewer data is
+  Mic frames during active speaker playback and for 350 ms afterward. The
+  monitor shows how many Mic frames were suppressed. Speaker data is
   processed independently and is not suppressed. If the loopback reference is
-  late, Candidate waits at most 350 ms, then uses silence until the missing reference catches up. It does not wait repeatedly
-  for each queued frame. Interviewer frames are kept unchanged.
+  late, Mic waits at most 350 ms, then uses silence until the missing reference catches up. It does not wait repeatedly
+  for each queued frame. Speaker frames are kept unchanged.
 - CLI capture opens only after the interactive `START` or `PREVIEW` confirmation.
   Noninteractive invocations cannot start capture.
 - The `gui` window starts Off, lets you select and save the two devices, and
   shows independent live peak bars, RMS, sent / acknowledged counts, and
-  speaker-suppressed Candidate frames. Clicking Connect / Start is the explicit
+  speaker-suppressed Mic frames. Clicking Connect / Start is the explicit
   action; both audio devices remain closed until the receiver accepts and requests
   transmission. Stop and window
   close release both inputs. The sender does not save recordings.
@@ -148,6 +148,13 @@ pending. Keep the selected built-in microphone and speaker for the user's setup.
 The optional CLI preview `--save` flag writes two separate mono 16 kHz PCM WAV files under
 `private/recordings/<capture-id>/candidate.wav` and `interviewer.wav`. That
 folder is ignored by Git. Saving requires the explicit `PREVIEW` confirmation;
-without `--save`, no audio files are written. Candidate WAVs contain the
+without `--save`, no audio files are written. Mic WAVs contain the
 speaker-priority suppression described above.
 
+
+## Audio labels
+
+The Windows UI, console and messages use **Mic** and **Speaker**. The existing
+wire/config source IDs `candidate` (Mic) and `interviewer` (Speaker) remain fixed
+for Mac receiver compatibility. New preview/recording files use mic.wav and
+speaker.wav; older saved files are unchanged.
