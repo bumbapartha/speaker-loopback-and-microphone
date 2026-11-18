@@ -250,17 +250,7 @@ class CaptureWindow:
             if state == "OFF" and self._last_sender_state != "OFF":
                 self._reset_connection_controls()
                 if snapshot["error"]:
-                    counts = (
-                        f"Last counts — sent: Candidate {sent['candidate']}, Interviewer {sent['interviewer']}; "
-                        f"acknowledged: Candidate {acked['candidate']}, Interviewer {acked['interviewer']}; "
-                        f"still queued: Candidate {snapshot['queued']['candidate']}, "
-                        f"Interviewer {snapshot['queued']['interviewer']}."
-                    )
-                    messagebox.showerror(
-                        "Capture / connection stopped",
-                        f"{snapshot['error']}\n\n{counts}",
-                        parent=self.root,
-                    )
+                    self.message_var.set("Capture could not continue. " + snapshot["error"])
             self._last_sender_state = state
         self.root.after(200, self._refresh_meters)
 

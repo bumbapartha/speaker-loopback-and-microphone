@@ -187,8 +187,9 @@ class WebSocketCaptureSender:
                 else:
                     self._set_state("WAITING", "Mac is up; waiting for an interview with Use Windows audio checked. Checking every 5 seconds.")
             except CaptureError:
-                # Device loss requires reselection rather than an endless hardware retry.
-                raise
+                # _stream's finally releases both devices and clears queued PCM.
+                # Re-enter readiness polling with a fresh captureId on reconnect.
+                self._set_state("WAITING", "Audio capture interrupted. Recovering automatically in 5 seconds; queued audio was cleared. Stop to change devices if needed.")
             except Exception:
                 self._set_state("WAITING", "Mac unavailable or disconnected. Retrying in 5 seconds; audio devices are Off.")
             if not self.stop_requested.is_set():

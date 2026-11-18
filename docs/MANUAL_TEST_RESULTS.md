@@ -62,3 +62,15 @@ confirmed recovery after the reference catches up, Candidate suppression during
 speaker activity, and unchanged Interviewer frames. Source compilation passed.
 Stop now releases alignment waits before joining workers; callback timestamps are
 no longer overwritten by older queued packets. Actual HP audio retesting is pending.
+
+## Automatic capture recovery check
+
+Date: 2026-11-18
+
+A focused synthetic sender check injected a Candidate queue-overflow CaptureError.
+The sender released capture, showed a non-error recovery status, retried readiness
+after five seconds and resumed with a fresh captureId/counters. Normal WebSocket
+close also recovered automatically. Pause/resume heartbeats, role-separated frames
+and Stop disabling retries still passed. Python compilation passed. Runtime error
+popups were removed; configuration validation still reports invalid selections.
+Actual Windows hardware recovery remains a manual check after updating the HP app.

@@ -165,7 +165,7 @@ class CaptureSession:
                 source.packets += 1
             except queue.Full:
                 source.dropped_frames += math.ceil(frame_count * INPUT_RATE / source.sample_rate / FRAME_SAMPLES)
-                self._fail(f"{source.label} queue overflowed. Both captures stopped because audio processing fell behind. Restart capture; if repeated, report the source and queue counts.")
+                self._fail(f"{source.label} queue overflowed. Audio processing fell behind; releasing both capture streams.")
                 return None, pa.paAbort
             return None, pa.paContinue
 
@@ -185,7 +185,7 @@ class CaptureSession:
                         source.converter.append_silence_until(target)
                     elif self._started and source.last_callback_ns and not self.stopping.is_set():
                         if now_ns - source.last_callback_ns > MIC_STALL_US * 1000:
-                            self._fail("Microphone stopped delivering audio. Both sources are stopping; check the microphone and retry.")
+                            self._fail("Microphone stopped delivering audio; this capture is being released for recovery.")
                 except CaptureError as exc:
                     self._fail(str(exc))
                     return

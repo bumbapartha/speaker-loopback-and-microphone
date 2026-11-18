@@ -74,8 +74,11 @@ Connection loss, normal close 1000, Mac Finish/End or ten seconds without a pong
 or acknowledgement releases both inputs and returns to five-second readiness
 polling. Reconnection uses a new captureId and counters, without an old backlog.
 **Stop** or closing the window disables automatic reconnect and releases inputs.
-Device/capture errors stop the agent so devices can be reselected; network failures
-wait and retry without an error popup. No certificate, token or session ID is needed.
+Queue overflow, capture interruptions and network failures release both inputs,
+clear queued audio and retry automatically after five seconds without an error
+popup. A new connection uses fresh capture counters and never replays old audio.
+If a selected device remains unavailable, the agent keeps waiting; use Stop to
+change device selection. No certificate, token or session ID is needed.
 
 The window shows WAITING, CONNECTING, PAUSED or CAPTURE ON, per-source meters and
 sent/acknowledged counts. Each source retains its own bounded queue and flow-control
