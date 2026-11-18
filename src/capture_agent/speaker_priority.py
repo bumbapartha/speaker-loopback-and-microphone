@@ -12,7 +12,7 @@ from .conversion import FRAME_SAMPLES, PreviewFrame
 FRAME_DURATION_US = 20_000
 ALIGNMENT_MARGIN_US = 40_000
 SPEAKER_HANGOVER_US = 350_000
-GATE_WAIT_SECONDS = 1.2
+GATE_WAIT_SECONDS = 0.35
 ACTIVE_RMS_THRESHOLD = 0.002
 ACTIVE_PEAK_THRESHOLD = 0.008
 ZERO_PCM = bytes(FRAME_SAMPLES * 2)
@@ -31,6 +31,7 @@ class SpeakerPriorityGate:
         self._condition = threading.Condition()
         self._watermark_us = -1
         self._closed = False
+        self._late_until_us: int | None = None
         self._active: deque[tuple[int, int]] = deque(maxlen=5000)
 
     def interviewer_frame(self, frame: PreviewFrame) -> tuple[PreviewFrame, bool]:
@@ -61,11 +62,18 @@ class SpeakerPriorityGate:
         timeline_target = frame_end + ALIGNMENT_MARGIN_US
         deadline = time.monotonic() + GATE_WAIT_SECONDS
         with self._condition:
-            while self._watermark_us < timeline_target and not self._closed:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                self._condition.wait(remaining)
+            # After a timeout, pass queued frames through the silence fallback
+            # without waiting again until the reference reaches that old target.
+            # Waiting separately for every overdue frame stalls the capture worker.
+            if self._late_until_us is not None and self._watermark_us >= self._late_until_us:
+                self._late_until_us = None
+            if self._late_until_us is None:
+                while self._watermark_us < timeline_target and not self._closed:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        self._late_until_us = timeline_target
+                        break
+                    self._condition.wait(remaining)
             playback_active = any(
                 interval_start <= frame_end and interval_end >= frame_start
                 for interval_start, interval_end in self._active

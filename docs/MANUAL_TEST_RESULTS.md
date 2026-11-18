@@ -50,3 +50,15 @@ On the HP laptop, run the GUI, click Connect / Start once, then start the Mac
 interview and toggle Use Windows audio off/on. Confirm both role transcripts,
 paused audio silence, automatic recovery after restarting the Mac, and Stop.
 Real Windows audio/GUI acceptance remains pending.
+
+## Candidate queue overflow fix (synthetic reference stall)
+
+The Candidate worker previously waited up to 1.2 seconds for loopback alignment,
+longer than its native input queue capacity. A focused synthetic check reproduced
+an overflow at 46 queued packets. With a 350 ms maximum wait and a silence fallback
+that avoids repeated waits until the delayed reference catches up, the same check
+completed without overflow (14 packets maximum in this run). Separate checks
+confirmed recovery after the reference catches up, Candidate suppression during
+speaker activity, and unchanged Interviewer frames. Source compilation passed.
+Stop now releases alignment waits before joining workers; callback timestamps are
+no longer overwritten by older queued packets. Actual HP audio retesting is pending.

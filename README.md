@@ -126,9 +126,9 @@ speaker audio or frame-boundary echo can still appear in Candidate.
 - Speaker-priority mode waits for the aligned loopback timeline, then zeros
   Candidate frames during active speaker playback and for 350 ms afterward. The
   monitor shows how many Candidate frames were suppressed. Interviewer data is
-  processed independently and is not suppressed. If the streams cannot be
-  aligned within 1.2 seconds, that Candidate frame is suppressed as a safety
-  fallback; the Interviewer frame is still kept.
+  processed independently and is not suppressed. If the loopback reference is
+  late, Candidate waits at most 350 ms, then uses silence until the missing reference catches up. It does not wait repeatedly
+  for each queued frame. Interviewer frames are kept unchanged.
 - CLI capture opens only after the interactive `START` or `PREVIEW` confirmation.
   Noninteractive invocations cannot start capture.
 - The `gui` window starts Off, lets you select and save the two devices, and

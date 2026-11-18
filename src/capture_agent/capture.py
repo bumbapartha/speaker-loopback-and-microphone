@@ -165,7 +165,7 @@ class CaptureSession:
                 source.packets += 1
             except queue.Full:
                 source.dropped_frames += math.ceil(frame_count * INPUT_RATE / source.sample_rate / FRAME_SAMPLES)
-                self._fail(f"{source.label} queue overflowed. Both captures stopped; close other audio-heavy apps and retry.")
+                self._fail(f"{source.label} queue overflowed. Both captures stopped because audio processing fell behind. Restart capture; if repeated, report the source and queue counts.")
                 return None, pa.paAbort
             return None, pa.paContinue
 
@@ -178,7 +178,6 @@ class CaptureSession:
                 try:
                     pcm, frame_count, timestamp_us, received_ns = source.queue.get(timeout=0.02)
                     source.converter.push(pcm, timestamp_us)
-                    source.last_callback_ns = received_ns
                 except queue.Empty:
                     now_ns = time.perf_counter_ns()
                     if source.key == "interviewer":
@@ -302,6 +301,7 @@ class CaptureSession:
         }
 
     def stop(self, *, clear: bool) -> None:
+        self.speaker_priority.close()  # Release any candidate wait before joining workers.
         if not self.stopping.is_set():
             self.stopping.set()
         self._stop_us = max(0, (time.perf_counter_ns() - self._origin_ns) // 1000) if self._origin_ns else 0
