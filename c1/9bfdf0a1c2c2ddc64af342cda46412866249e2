@@ -1,0 +1,26 @@
+README.md
+  s_fdb4f9ccd90634::t_d4f8fbe509854d 131
+  s_fdb4f9ccd90634::t_33b077bb67fb8e 129-130
+src/capture_agent/speaker_priority.py
+  s_fdb4f9ccd90634::t_d4f8fbe509854d 15,34,65-76
+docs/MANUAL_TEST_RESULTS.md
+  s_fdb4f9ccd90634::t_33b077bb67fb8e 53-64
+src/capture_agent/capture.py
+  s_fdb4f9ccd90634::t_d4f8fbe509854d 168,304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c19bfdf0a1c2c2ddc64af342cda46412866249e2",
+  "prompts": {},
+  "sessions": {
+    "s_fdb4f9ccd90634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8b2-d8ce-7a61-b2b4-26074070f174",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Partha Sarathi Ghosh <ghosh.bumba@gmail.com>"
+    }
+  }
+}
