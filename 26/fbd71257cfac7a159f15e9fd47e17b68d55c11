@@ -1,0 +1,36 @@
+README.md
+  s_fdb4f9ccd90634::t_049ece2308cbbb 1,6,15-16,71,96-97,110,112,115,130-131,133-134,139,151,154-160
+src/capture_agent/capture.py
+  s_fdb4f9ccd90634::t_049ece2308cbbb 125,130,215
+src/capture_agent/transport.py
+  s_fdb4f9ccd90634::t_049ece2308cbbb 128,364
+src/capture_agent/speaker_priority.py
+  s_fdb4f9ccd90634::t_049ece2308cbbb 24
+src/capture_agent/cli.py
+  s_fdb4f9ccd90634::t_ae5232eeb34d30 40,43,47,54,57,76-78,97-98,137,140,200-201
+  s_fdb4f9ccd90634::t_049ece2308cbbb 100,197-198,213
+src/capture_agent/gui.py
+  s_fdb4f9ccd90634::t_049ece2308cbbb 25,72,75,81,89,93,98,209,247-248
+docs/MANUAL_TEST_RESULTS.md
+  s_fdb4f9ccd90634::t_049ece2308cbbb 20-21,42,54,56,61-62,70
+WINDOWS_AGENT_HANDOFF.md
+  s_fdb4f9ccd90634::t_049ece2308cbbb 32,54
+WINDOWS_CAPTURE_AGENT_IMPLEMENTATION_PLAN.md
+  s_fdb4f9ccd90634::t_049ece2308cbbb 49-50,55,65-68,106,238,242,244-245,261,267,300,323,327,339-340,349-351,355,361,363-364,371,386-387,389,432,488,490
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "26fbd71257cfac7a159f15e9fd47e17b68d55c11",
+  "prompts": {},
+  "sessions": {
+    "s_fdb4f9ccd90634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8b2-d8ce-7a61-b2b4-26074070f174",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Partha Sarathi Ghosh <ghosh.bumba@gmail.com>"
+    }
+  }
+}
