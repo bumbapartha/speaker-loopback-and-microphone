@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 from typing import Any
 
 from .devices import AudioDevice, DeviceDiscoveryError, create_device_selection, enumerate_wasapi_devices
@@ -15,6 +16,10 @@ from .transport import DEFAULT_RECEIVER_URL, TransportError, WebSocketCaptureSen
 class CaptureWindow:
     def __init__(self, root: tk.Tk, config_path: str | Path) -> None:
         self.root = root
+        self.tray = None
+        self._auto_connect = False
+        self._exiting = False
+        self._exit_deadline = 0.0
         self.config_path = Path(config_path)
         self.receiver_config_path = self.config_path.parent / "receiver.json"
         self.sender: WebSocketCaptureSender | None = None
@@ -40,6 +45,7 @@ class CaptureWindow:
         self._build_widgets()
         self.refresh_devices()
         self.root.after(200, self._refresh_meters)
+        self.root.after(5000, self._maintain_sender)
 
     def _load_saved_config(self) -> None:
         try:
@@ -104,6 +110,7 @@ class CaptureWindow:
         self.refresh_button.pack(side="left")
         self.save_button = ttk.Button(controls, text="Save selection", command=self.save_selection)
         self.save_button.pack(side="left", padx=(8, 0))
+        ttk.Button(controls, text="Exit", command=self.exit_app).pack(side="left", padx=(8, 0))
         self.start_button = ttk.Button(controls, text="Connect / Start", command=self.start_capture)
         self.start_button.pack(side="right")
         self.stop_button = ttk.Button(controls, text="Stop", command=self.stop_capture, state="disabled")
@@ -111,7 +118,7 @@ class CaptureWindow:
 
         ttk.Label(
             outer,
-            text="While started, Mac readiness is checked every 5 seconds. Capture runs only when the Mac requests it. Stop or closing releases inputs and disables automatic reconnect.",
+            text="While started, Mac readiness is checked every 5 seconds. Capture runs only when the Mac requests it. Stop pauses capture. Close hides this window; tray Exit stops the app. It starts again at Windows sign-in.",
             wraplength=610,
         ).grid(row=13, column=0, columnspan=3, sticky="w", pady=(10, 0))
 
@@ -137,7 +144,7 @@ class CaptureWindow:
         try:
             self.microphones, self.playbacks, _ = enumerate_wasapi_devices()
         except DeviceDiscoveryError as exc:
-            self.message_var.set(str(exc))
+            self.message_var.set("Waiting for audio devices.")
             return
         self._mic_by_label = {self._choice_label(device): device for device in self.microphones}
         self._playback_by_label = {self._choice_label(device): device for device in self.playbacks}
@@ -150,9 +157,9 @@ class CaptureWindow:
         self.mic_var.set(mic_match or "")
         self.playback_var.set(playback_match or "")
         if not self.microphones or not self.playbacks:
-            self.message_var.set("No usable WASAPI microphone or playback devices were found.")
+            self.message_var.set("Connect Mic and Speaker, then refresh devices.")
         elif (saved_mic and not mic_match) or (saved_playback and not playback_match):
-            self.message_var.set("A saved device is missing or its index changed. Select devices again; nothing was switched automatically.")
+            self.message_var.set("Choose Mic and Speaker, then save your selection.")
         else:
             self.message_var.set("Capture is Off. The built-in microphone and speaker are selected when available.")
 
@@ -176,7 +183,7 @@ class CaptureWindow:
             config = self._build_selection()
             self._persist_config(config)
         except (DeviceDiscoveryError, OSError) as exc:
-            messagebox.showerror("Cannot save selection", str(exc), parent=self.root)
+            self.message_var.set("Choose Mic and Speaker, then save your selection.")
             return
         self.message_var.set(f"Selection saved to {self.config_path}. Capture remains Off.")
 
@@ -186,12 +193,12 @@ class CaptureWindow:
         try:
             config = self._build_selection()
         except DeviceDiscoveryError as exc:
-            messagebox.showerror("Invalid device selection", str(exc), parent=self.root)
+            self.message_var.set("Choose Mic and Speaker to continue.")
             return
         try:
             receiver_url = validate_receiver_url(self.receiver_url_var.get())
         except TransportError as exc:
-            messagebox.showerror("Invalid receiver URL", str(exc), parent=self.root)
+            self.message_var.set("Enter the receiver URL shown on the Mac.")
             return
         try:
             self._persist_config(config)
@@ -201,9 +208,12 @@ class CaptureWindow:
         except (OSError, DeviceDiscoveryError, TransportError) as exc:
             self.sender = None
             self.state_var.set("CAPTURE OFF")
-            self.message_var.set(str(exc))
-            messagebox.showerror("Connection did not start", str(exc), parent=self.root)
+            self.message_var.set("Waiting to connect.")
             return
+        self._auto_connect = True
+        self._attach_sender(sender)
+
+    def _attach_sender(self, sender: WebSocketCaptureSender) -> None:
         self.sender = sender
         self._last_sender_state = "CONNECTING"
         self.transport_stats.set("Sent: Mic 0 · Speaker 0 | Acknowledged: Mic 0 · Speaker 0")
@@ -223,7 +233,14 @@ class CaptureWindow:
             snapshot = self.sender.snapshot()
             state = snapshot["state"]
             self.state_var.set("CAPTURE ON" if state == "ON" else state)
-            self.message_var.set(snapshot["detail"] or "")
+            self.message_var.set({
+                "ON": "Mic and Speaker are streaming to the Mac.",
+                "WAITING": "Waiting for the Mac interview.",
+                "CONNECTING": "Connecting to the Mac.",
+                "PAUSED": "Waiting for Windows audio to be enabled on the Mac.",
+                "STOPPING": "Stopping capture.",
+                "OFF": "Ready.",
+            }.get(state, "Running in the background."))
             candidate = snapshot["metrics"].get("candidate")
             interviewer = snapshot["metrics"].get("interviewer")
             if candidate:
@@ -250,11 +267,12 @@ class CaptureWindow:
             if state == "OFF" and self._last_sender_state != "OFF":
                 self._reset_connection_controls()
                 if snapshot["error"]:
-                    self.message_var.set("Capture could not continue. " + snapshot["error"])
+                    self.message_var.set("Waiting to reconnect automatically.")
             self._last_sender_state = state
         self.root.after(200, self._refresh_meters)
 
     def stop_capture(self) -> None:
+        self._auto_connect = False
         if self.sender is not None and self.sender.snapshot()["state"] != "OFF":
             self.sender.stop()
             self.state_var.set("STOPPING")
@@ -278,15 +296,72 @@ class CaptureWindow:
         self.priority_check.configure(state="normal")
         self.receiver_entry.configure(state="normal")
 
+    def start_saved(self) -> None:
+        if self._exiting or not self.config_path.exists():
+            return
+        self._auto_connect = True
+        try:
+            sender = WebSocketCaptureSender(self.receiver_url_var.get(), str(self.config_path))
+            sender.start()
+            self._attach_sender(sender)
+        except Exception:
+            pass
+
+    def _maintain_sender(self) -> None:
+        if self._exiting:
+            return
+        if self._auto_connect and (self.sender is None or self.sender.snapshot()["state"] == "OFF"):
+            self.start_saved()
+        self.root.after(5000, self._maintain_sender)
+
     def close(self) -> None:
-        if self.sender is not None and self.sender.snapshot()["state"] != "OFF":
+        if self.tray:
+            self.tray.hide()
+        else:
+            self.exit_app()
+
+    def exit_app(self) -> None:
+        if self._exiting:
+            return
+        self._exiting = True
+        self._auto_connect = False
+        self._exit_deadline = time.monotonic() + 10
+        self.root.withdraw()
+        if self.tray:
+            self.tray.stop()
+        if self.sender:
             self.sender.stop()
-            if self.sender._thread is not None:
-                self.sender._thread.join(timeout=7.0)
-        self.root.destroy()
+        self._finish_exit()
+
+    def _finish_exit(self) -> None:
+        thread = self.sender._thread if self.sender else None
+        if thread and thread.is_alive() and time.monotonic() < self._exit_deadline:
+            self.root.after(100, self._finish_exit)
+        else:
+            self.root.destroy()
 
 
-def launch(config_path: str | Path = "private/agent.json") -> None:
+def launch(config_path: str | Path = "private/agent.json", *, hidden: bool = False) -> None:
+    from .desktop import DesktopInstance, TrayController, enable_startup
+    config_path = Path(config_path).resolve()
+    instance = DesktopInstance()
+    if not instance.primary:
+        instance.close()
+        return
     root = tk.Tk()
-    CaptureWindow(root, config_path)
-    root.mainloop()
+    root.withdraw()
+    try:
+        window = CaptureWindow(root, config_path)
+        # No traceback dialogs or raw errors from Tk callbacks.
+        root.report_callback_exception = lambda *args: None
+        window.tray = TrayController(root, instance, window.exit_app, hidden or config_path.exists())
+        enable_startup(config_path)
+        if config_path.exists():
+            window.start_saved()
+        if not hidden and not config_path.exists():
+            root.deiconify()
+        root.mainloop()
+    finally:
+        if 'window' in locals() and window.tray:
+            window.tray.stop()
+        instance.close()

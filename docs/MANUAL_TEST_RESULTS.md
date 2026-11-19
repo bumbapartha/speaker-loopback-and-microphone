@@ -74,3 +74,17 @@ close also recovered automatically. Pause/resume heartbeats, role-separated fram
 and Stop disabling retries still passed. Python compilation passed. Runtime error
 popups were removed; configuration validation still reports invalid selections.
 Actual Windows hardware recovery remains a manual check after updating the HP app.
+
+## Tray/startup lifecycle checks
+
+Date: 2026-11-19
+
+Python compilation and focused mock checks passed for --tray parsing, quoted
+pythonw/absolute-config startup registration, silent registration failure,
+single-instance signalling, tray Open/hide/Exit, and the accessible-window fallback
+when tray creation fails. These checks did not change the Mac registry or start
+Windows audio devices. Actual HP validation is pending: install updated editable
+package, launch GUI once, confirm tray Open/X/Exit, sign out/in to verify hidden
+startup and saved-settings reconnection, then interrupt Mac/audio availability and
+confirm no errors/popups while retries continue. Stop must pause retries and Exit
+must release both inputs and remove the tray icon.

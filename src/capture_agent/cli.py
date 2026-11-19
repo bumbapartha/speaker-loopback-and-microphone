@@ -231,7 +231,7 @@ def command_preview(args: argparse.Namespace) -> int:
 def command_gui(args: argparse.Namespace) -> int:
     from .gui import launch
 
-    launch(args.config)
+    launch(args.config, hidden=args.tray)
     return 0
 
 
@@ -260,6 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     preview.set_defaults(handler=command_preview)
     gui = subparsers.add_parser("gui", help="open the Start/Stop window with meters and device selection")
     gui.add_argument("--config", default="private/agent.json")
+    gui.add_argument("--tray", action="store_true", help="start hidden in the Windows tray")
     gui.set_defaults(handler=command_gui)
     return parser
 

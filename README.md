@@ -73,7 +73,7 @@ still sends silence frames to preserve timing. Speaker audio is never gated.
 Connection loss, normal close 1000, Mac Finish/End or ten seconds without a pong
 or acknowledgement releases both inputs and returns to five-second readiness
 polling. Reconnection uses a new captureId and counters, without an old backlog.
-**Stop** or closing the window disables automatic reconnect and releases inputs.
+**Stop** disables automatic reconnect and releases inputs. Closing hides to the tray; **Exit** closes the agent.
 Queue overflow, capture interruptions and network failures release both inputs,
 clear queued audio and retry automatically after five seconds without an error
 popup. A new connection uses fresh capture counters and never replays old audio.
@@ -138,8 +138,7 @@ speaker audio or frame-boundary echo can still appear in Mic.
   shows independent live peak bars, RMS, sent / acknowledged counts, and
   speaker-suppressed Mic frames. Clicking Connect / Start is the explicit
   action; both audio devices remain closed until the receiver accepts and requests
-  transmission. Stop and window
-  close release both inputs. The sender does not save recordings.
+  transmission. Stop pauses both inputs; window close hides to tray, and Exit releases inputs. The sender does not save recordings.
 
 The user manually confirmed a saved GUI conversation sounded correct; see
 `docs/MANUAL_TEST_RESULTS.md`. W4 Mac receiver transport acceptance is still
@@ -158,3 +157,31 @@ The Windows UI, console and messages use **Mic** and **Speaker**. The existing
 wire/config source IDs `candidate` (Mic) and `interviewer` (Speaker) remain fixed
 for Mac receiver compatibility. New preview/recording files use mic.wav and
 speaker.wav; older saved files are unchanged.
+
+## Windows tray and sign-in startup
+
+Update dependencies once after pulling these changes:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\pythonw.exe -m capture_agent gui --config private\agent.json
+```
+
+The first launch shows setup when no device config exists. Save Mic/Speaker and
+the Mac receiver URL, then Connect / Start. Later launches use the tray and saved
+settings. Click the tray icon (or right-click → Open Interview Preparation) to open
+the UI. X hides it; capture/readiness polling continues. Stop pauses capture and
+retries; Exit in the tray or UI releases devices and closes the app. A second launch
+opens the existing instance instead of starting another sender.
+
+The first GUI launch registers this environment's pythonw.exe under the current
+user's Windows Run registry key. At Windows sign-in it starts hidden in the tray
+and waits for Mac readiness using saved settings. No administrator rights or
+Windows service is required. Exit stops the current run; the next Windows sign-in
+starts it again. To disable sign-in launch, use Windows Settings → Apps → Startup
+(or remove InterviewPreparationAudio from HKCU\Software\Microsoft\Windows\CurrentVersion\Run).
+
+The GUI shows only neutral status and setup instructions: no error dialogs,
+tracebacks or raw connection/capture errors. Runtime failures retry quietly. If the
+tray is unavailable, the UI remains accessible rather than hiding without a way
+back. Real tray, sign-in, device recovery and Exit behavior must be checked on HP.
