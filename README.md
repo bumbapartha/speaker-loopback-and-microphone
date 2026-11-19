@@ -1,4 +1,4 @@
-# Interview Preparation · Windows Audio
+# speaker & microphone
 
 W0–W2 capture and W4 LAN sender: a Windows app that discovers WASAPI devices,
 explicitly captures a selected microphone and playback loopback, and streams
@@ -169,7 +169,7 @@ Update dependencies once after pulling these changes:
 
 The first launch shows setup when no device config exists. Save Mic/Speaker and
 the Mac receiver URL, then Connect / Start. Later launches use the tray and saved
-settings. Click the tray icon (or right-click → Open Interview Preparation) to open
+settings. Click the tray icon (or right-click → Open speaker & microphone) to open
 the UI. X hides it; capture/readiness polling continues. Stop pauses capture and
 retries; Exit in the tray or UI releases devices and closes the app. A second launch
 opens the existing instance instead of starting another sender.

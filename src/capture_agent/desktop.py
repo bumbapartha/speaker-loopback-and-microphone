@@ -10,7 +10,7 @@ import sys
 import threading
 from typing import Any, Callable
 
-APP_NAME = "Interview Preparation"
+APP_NAME = "speaker & microphone"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 RUN_NAME = "InterviewPreparationAudio"
 
@@ -95,7 +95,7 @@ class TrayController:
             draw.arc((32, 17, 50, 35), -90, 90, fill="#edf3d9", width=6)
             draw.ellipse((46, 45, 55, 54), fill="#a8cf7b")
             self.icon = pystray.Icon("interview-preparation", image, APP_NAME, pystray.Menu(
-                pystray.MenuItem("Open Interview Preparation", lambda icon, item: self.actions.put("show"), default=True),
+                pystray.MenuItem(f"Open {APP_NAME}", lambda icon, item: self.actions.put("show"), default=True),
                 pystray.MenuItem("Exit", lambda icon, item: self.actions.put("exit")),
             ))
             def ready(icon: Any) -> None:

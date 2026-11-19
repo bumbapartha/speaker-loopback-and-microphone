@@ -27,7 +27,7 @@ class CaptureWindow:
         self.playbacks: list[AudioDevice] = []
         self._mic_by_label: dict[str, AudioDevice] = {}
         self._playback_by_label: dict[str, AudioDevice] = {}
-        self.root.title("Interview Preparation · Windows Audio")
+        self.root.title("speaker & microphone")
         self.root.minsize(820, 500)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
