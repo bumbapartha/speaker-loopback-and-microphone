@@ -1,0 +1,23 @@
+src/capture_agent/gui.py
+  s_fdb4f9ccd90634::t_69b79f5fc45d3e 30
+src/capture_agent/desktop.py
+  s_fdb4f9ccd90634::t_69b79f5fc45d3e 13,98
+README.md
+  s_fdb4f9ccd90634::t_69b79f5fc45d3e 1,172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6a351007f1ff05eeb8341a73d4a653ed655ba71",
+  "prompts": {},
+  "sessions": {
+    "s_fdb4f9ccd90634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8b2-d8ce-7a61-b2b4-26074070f174",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Partha Sarathi Ghosh <ghosh.bumba@gmail.com>"
+    }
+  }
+}
