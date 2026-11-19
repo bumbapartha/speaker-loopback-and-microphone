@@ -1,0 +1,34 @@
+src/capture_agent/gui.py
+  s_fdb4f9ccd90634::t_7b8b04f522397d 160,162,236-243
+  s_fdb4f9ccd90634::t_104f046acdfbbc 6,9,19-22,48,113,121,147,186,196,201,211,213-216,270,275,299-316,318-332,334-341,344-350,352-367
+requirements-lock.txt
+  s_fdb4f9ccd90634::t_d0fceaeb98605b 1
+  s_fdb4f9ccd90634::t_104f046acdfbbc 7-8
+README.md
+  s_fdb4f9ccd90634::t_7b8b04f522397d 76,141,160-187
+docs/MANUAL_TEST_RESULTS.md
+  s_fdb4f9ccd90634::t_a2a410114d352f 77-90
+src/capture_agent/desktop.py
+  s_fdb4f9ccd90634::t_104f046acdfbbc 1-105,108,110-111,113-132,137-150
+  s_fdb4f9ccd90634::t_d0fceaeb98605b 106-107,109,112,133-136
+pyproject.toml
+  s_fdb4f9ccd90634::t_104f046acdfbbc 16-17
+src/capture_agent/cli.py
+  s_fdb4f9ccd90634::t_104f046acdfbbc 234,263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75b25bc6fc6aa4ab2df5e1903849d261b49279bc",
+  "prompts": {},
+  "sessions": {
+    "s_fdb4f9ccd90634": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1e8b2-d8ce-7a61-b2b4-26074070f174",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Partha Sarathi Ghosh <ghosh.bumba@gmail.com>"
+    }
+  }
+}
